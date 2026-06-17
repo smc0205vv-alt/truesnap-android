@@ -75,4 +75,13 @@ dependencies {
     //logging
     implementation(libs.timber)
 
+    // GPUImage for real-time photo filters
+    implementation(libs.gpuimage)
+
+    // pHashCalc — perceptual hashing for image similarity detection
+    implementation(libs.phashcalc)
+
+    // HTTP client for certification upload
+    implementation(libs.okhttp)
+
 }

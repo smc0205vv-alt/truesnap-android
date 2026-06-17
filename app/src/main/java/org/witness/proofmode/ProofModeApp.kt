@@ -218,26 +218,20 @@ class ProofModeApp : Application(), Configuration.Provider {
 
         mPrefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(this)
 
-        // Reconcile the keystore-wrapped passphrase with the on-disk keyring
-        // *before* anything else can touch PassphraseKeystore. If init(this)
-        // runs first it ends up calling MediaWatcher.getInstance() (when
-        // PREFS_DOPROOF is true), which would call getOrCreatePassphrase()
-        // and auto-generate a passphrase that doesn't match the existing
-        // legacy keyring — producing PGP checksum-mismatch crashes on sign.
-        // This is fast: no 4096-bit RSA generation here, only file checks,
-        // a PBE test-decrypt, and (on migration) an in-memory keyring rewrite.
-        provisionPassphrase()
+        // MVP: PGP key provisioning skipped (FEATURE_PGP_SIGNING = false).
+        // Restore provisionPassphrase() + initPgpKey() calls when PGP is re-enabled.
+        if (ProofMode.FEATURE_PGP_SIGNING) {
+            provisionPassphrase()
+        }
 
         init(this)
 
-        //add google safetynet and opentimestamps
         addDefaultNotarizationProviders()
 
-        GlobalScope.launch(Dispatchers.IO) {
-            // Slow path (4096-bit RSA × 2 on a fresh install) goes on IO.
-            // By now provisionPassphrase has guaranteed the wrapper holds
-            // whatever passphrase the keyring will need.
-            initPgpKey()
+        if (ProofMode.FEATURE_PGP_SIGNING) {
+            GlobalScope.launch(Dispatchers.IO) {
+                initPgpKey()
+            }
         }
 
         StorageProviderManager.getInstance().initializeStorageProviders(this)
@@ -578,25 +572,30 @@ class ProofModeApp : Application(), Configuration.Provider {
 
     private fun addDefaultNotarizationProviders() {
 
-        try {
-            //this may not be included in the current build
-            Class.forName("com.eternitywall.ots.OpenTimestamps")
-            val nProvider: NotarizationProvider = OpenTimestampsNotarizationProvider(this)
+        if (ProofMode.FEATURE_BLOCKCHAIN_NOTARIZATION) {
+            // MVP: OpenTimestamps (Bitcoin blockchain) disabled.
+            try {
+                Class.forName("com.eternitywall.ots.OpenTimestamps")
+                val nProvider: NotarizationProvider = OpenTimestampsNotarizationProvider(this)
+                ProofMode.addNotarizationProvider(this, nProvider)
+            } catch (e: ClassNotFoundException) {
+                //class not available
+            }
+
+            // MVP: Nostr notarization disabled.
+            try {
+                Class.forName("rust.nostr.sdk.Keys")
+                val nProvider: NotarizationProvider = NostrNotarizationProvider(this)
+                ProofMode.addNotarizationProvider(this, nProvider)
+            } catch (e: ClassNotFoundException) {
+                //class not available
+            }
+        } else {
+            // MVP: simple server-based timestamp replaces blockchain notarization.
+            val nProvider: NotarizationProvider =
+                org.witness.proofmode.notaries.SimpleServerTimestampProvider(this)
             ProofMode.addNotarizationProvider(this, nProvider)
-        } catch (e: ClassNotFoundException) {
-            //class not available
         }
-
-        try {
-            //this may not be included in the current build
-            Class.forName("rust.nostr.sdk.Keys")
-            val nProvider: NotarizationProvider = NostrNotarizationProvider(this)
-            ProofMode.addNotarizationProvider(this, nProvider)
-        } catch (e: ClassNotFoundException) {
-            //class not available
-        }
-
-
     }
 
 

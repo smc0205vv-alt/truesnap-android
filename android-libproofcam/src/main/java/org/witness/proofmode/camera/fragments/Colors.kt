@@ -2,21 +2,21 @@ package org.witness.proofmode.camera.fragments
 
 import androidx.compose.ui.graphics.Color
 
-// Legacy deep-green brand color (retained as part of the module's public surface).
-val ColorPrimary = Color(0xFF083b00)
+// Legacy brand color (retained as part of the module's public surface).
+val ColorPrimary = Color(0xFF003f6b)
 
 // ---------------------------------------------------------------------------
-// ProofMode camera palette — a clean monochrome "pro" look with a single
-// brand-green accent. The green matches the main app (colorPrimary / colorAccent
-// = #79E176) and is used sparingly: the shutter ring, active control states and
+// TrueSnap camera palette — a clean monochrome "pro" look with a single
+// sky-blue accent. The blue matches the main app (colorPrimary / colorAccent
+// = #29B6F6) and is used sparingly: the shutter ring, active control states and
 // the focus reticle. Everything else stays strictly black & white.
 // ---------------------------------------------------------------------------
 
-/** Primary brand green accent (matches app `colorPrimary` / `colorAccent`). */
-val AccentGreen = Color(0xFF79E176)
+/** Primary sky-blue accent (matches app `colorPrimary` / `colorAccent`). */
+val AccentGreen = Color(0xFF29B6F6)
 
-/** Slightly deeper green for pressed / secondary accent moments. */
-val AccentGreenDark = Color(0xFF3CB371)
+/** Slightly deeper blue for pressed / secondary accent moments. */
+val AccentGreenDark = Color(0xFF0288D1)
 
 /** True black viewfinder backdrop. */
 val CameraBlack = Color(0xFF000000)

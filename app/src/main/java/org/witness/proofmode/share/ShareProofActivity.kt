@@ -1190,12 +1190,14 @@ class ShareProofActivity : AppCompatActivity() {
                 Timber.d(e, "Failed adding URI to zip: " + uri!!.lastPathSegment)
             }
         }
-        Timber.d("Adding public key")
-        //add public key
-        val pubKey = ProofMode.getPublicKeyString()
-        var entry: ZipEntry? = ZipEntry("pubkey.asc")
-        out.putNextEntry(entry)
-        out.write(pubKey.toByteArray())
+        // MVP: PGP public key excluded (FEATURE_PGP_SIGNING = false).
+        if (ProofMode.FEATURE_PGP_SIGNING) {
+            Timber.d("Adding public key")
+            val pubKey = ProofMode.getPublicKeyString()
+            var entry: ZipEntry? = ZipEntry("pubkey.asc")
+            out.putNextEntry(entry)
+            out.write(pubKey.toByteArray())
+        }
 
         //TODO c2pa
         /**
@@ -1209,7 +1211,7 @@ class ShareProofActivity : AppCompatActivity() {
 
         Timber.d("Adding HowToVerifyProofData.txt")
         val howToFile = "HowToVerifyProofData.txt"
-        entry = ZipEntry(howToFile)
+        var entry: ZipEntry? = ZipEntry(howToFile)
         out.putNextEntry(entry)
         val `is` = resources.assets.open(howToFile)
         val buffer = ByteArray(1024)

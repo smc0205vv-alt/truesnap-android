@@ -1088,44 +1088,43 @@ class MediaWatcher : BroadcastReceiver(), ProofModeV1Constants {
             null
         )
 
-        val pu = PgpUtils.getInstance()
+        if (ProofMode.FEATURE_PGP_SIGNING) {
+            val pu = PgpUtils.getInstance()
 
-        //sign the proof csv file
-        val isProof =
-            storageProvider!!.getInputStream(mediaHash, mediaHash + ProofMode.PROOF_FILE_TAG)
-        //        OutputStream osProofSig = mStorageProvider.getOutputStream(mediaHash, mediaHash + PROOF_FILE_TAG + OPENPGP_FILE_TAG);
-        val osProofSig = ByteArrayOutputStream()
-        pu.createDetachedSignature(isProof, osProofSig, mPassphrase, usePgpArmor)
-        storageProvider!!.saveBytes(
-            mediaHash,
-            mediaHash + ProofMode.PROOF_FILE_TAG + ProofMode.OPENPGP_FILE_TAG,
-            osProofSig.toByteArray(),
-            null
-        )
+            //sign the proof csv file
+            val isProof =
+                storageProvider!!.getInputStream(mediaHash, mediaHash + ProofMode.PROOF_FILE_TAG)
+            val osProofSig = ByteArrayOutputStream()
+            pu.createDetachedSignature(isProof, osProofSig, mPassphrase, usePgpArmor)
+            storageProvider!!.saveBytes(
+                mediaHash,
+                mediaHash + ProofMode.PROOF_FILE_TAG + ProofMode.OPENPGP_FILE_TAG,
+                osProofSig.toByteArray(),
+                null
+            )
 
-        //sign the proof json file
-        val isProofJson =
-            storageProvider!!.getInputStream(mediaHash, mediaHash + ProofMode.PROOF_FILE_JSON_TAG)
-        //OutputStream osProofJsonSig = mStorageProvider.getOutputStream(mediaHash, mediaHash + PROOF_FILE_JSON_TAG + OPENPGP_FILE_TAG);
-        val osProofJsonSig = ByteArrayOutputStream()
-        pu.createDetachedSignature(isProofJson, osProofJsonSig, mPassphrase, usePgpArmor)
-        storageProvider!!.saveBytes(
-            mediaHash,
-            mediaHash + ProofMode.PROOF_FILE_JSON_TAG + ProofMode.OPENPGP_FILE_TAG,
-            osProofJsonSig.toByteArray(),
-            null
-        )
+            //sign the proof json file
+            val isProofJson =
+                storageProvider!!.getInputStream(mediaHash, mediaHash + ProofMode.PROOF_FILE_JSON_TAG)
+            val osProofJsonSig = ByteArrayOutputStream()
+            pu.createDetachedSignature(isProofJson, osProofJsonSig, mPassphrase, usePgpArmor)
+            storageProvider!!.saveBytes(
+                mediaHash,
+                mediaHash + ProofMode.PROOF_FILE_JSON_TAG + ProofMode.OPENPGP_FILE_TAG,
+                osProofJsonSig.toByteArray(),
+                null
+            )
 
-        //sign the media file
-        //OutputStream osMediaSig = mStorageProvider.getOutputStream(mediaHash, mediaHash + OPENPGP_FILE_TAG);
-        val osMediaSig = ByteArrayOutputStream()
-        pu.createDetachedSignature(`is`, osMediaSig, mPassphrase, usePgpArmor)
-        storageProvider!!.saveBytes(
-            mediaHash,
-            mediaHash + ProofMode.OPENPGP_FILE_TAG,
-            osMediaSig.toByteArray(),
-            null
-        )
+            //sign the media file
+            val osMediaSig = ByteArrayOutputStream()
+            pu.createDetachedSignature(`is`, osMediaSig, mPassphrase, usePgpArmor)
+            storageProvider!!.saveBytes(
+                mediaHash,
+                mediaHash + ProofMode.OPENPGP_FILE_TAG,
+                osMediaSig.toByteArray(),
+                null
+            )
+        }
 
         Timber.d("Proof written/updated for uri %s and hash %s", uriMedia, mediaHash)
     }

@@ -42,9 +42,8 @@ fun CameraNavigation(navController:NavHostController,
                 viewModel.unbindAll()
                 viewModel.bindUseCasesForVideo(lifecycleOwner)
             }
-            CameraDestinations.PREVIEW-> {
-
-            }
+            CameraDestinations.PREVIEW -> {}
+            CameraDestinations.EDIT -> {}
         }
     }
 
@@ -53,7 +52,6 @@ fun CameraNavigation(navController:NavHostController,
             enterTransition = { fadeIn() },
             exitTransition = { fadeOut() }
         ) {
-
             PhotoCamera(cameraViewModel = viewModel, lifecycleOwner = lifecycleOwner, onNavigateToPreview = {
                 navController.navigate(CameraDestinations.PREVIEW)
             }, onNavigateToVideo = {
@@ -62,8 +60,9 @@ fun CameraNavigation(navController:NavHostController,
                         inclusive = true
                     }
                 }
+            }, onNavigateToEdit = {
+                navController.navigate(CameraDestinations.EDIT)
             }, onClose = onClosed)
-
         }
         composable(CameraDestinations.VIDEO,
             enterTransition = { fadeIn() },
@@ -78,11 +77,9 @@ fun CameraNavigation(navController:NavHostController,
                 }
             }, onNavigateBack = {
                 navController.popBackStack()
-
             }, onNavigateToPreview = {
                 navController.navigate(CameraDestinations.PREVIEW)
             }, onClose = onClosed)
-
         }
         composable(CameraDestinations.PREVIEW,
             enterTransition = { fadeIn() },
@@ -90,16 +87,20 @@ fun CameraNavigation(navController:NavHostController,
             MediaPreview(viewModel = viewModel, modifier = Modifier.fillMaxSize(), onNavigateBack = {
                 navController.popBackStack()
             })
-
         }
-
+        composable(CameraDestinations.EDIT,
+            enterTransition = { fadeIn() },
+            exitTransition = { fadeOut() }) {
+            PhotoEditScreen(viewModel = viewModel, onNavigateBack = {
+                navController.popBackStack()
+            })
+        }
     }
-
-
 }
 
 object CameraDestinations {
     const val PHOTO = "photo"
-   const val VIDEO = "video"
-   const val PREVIEW = "preview"
+    const val VIDEO = "video"
+    const val PREVIEW = "preview"
+    const val EDIT = "edit"
 }

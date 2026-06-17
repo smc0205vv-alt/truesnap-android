@@ -68,6 +68,7 @@ import org.witness.proofmode.ProofMode
 import org.witness.proofmode.camera.CameraActivity
 import org.witness.proofmode.camera.adapter.Media
 import org.witness.proofmode.camera.fragments.CameraConstants.NEW_MEDIA_EVENT
+import org.witness.proofmode.camera.network.CertificationService
 import org.witness.proofmode.camera.utils.SharedPrefsManager
 import org.witness.proofmode.camera.utils.getMediaFlow
 import org.witness.proofmode.camera.utils.getSupportedQualities
@@ -82,6 +83,27 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
+
+/** State machine for the post-edit certification + upload flow. */
+sealed class CertificationState {
+    object Idle : CertificationState()
+    object Processing : CertificationState()
+    /**
+     * Issued regardless of server outcome — [authId], [sha256Hash], and [pHash] are always set.
+     *
+     * Server-side classification hint (see [CertificationService] KDoc):
+     *   SHA-256 same                              → 동일 파일
+     *   SHA-256 diff + pHash Hamming ≤ 10        → 단순 보정됨
+     *   SHA-256 diff + pHash Hamming > 10        → 구조 변경 의심
+     */
+    data class Done(
+        val authId: String,
+        val sha256Hash: String,
+        val pHash: String?,
+        val uploadedToServer: Boolean,
+        val serverError: String? = null
+    ) : CertificationState()
+}
 
 class CameraViewModel(private val activity: CameraActivity, private val app: Application) : AndroidViewModel(app) {
     private val sharedPrefsManager = SharedPrefsManager.newInstance(app.applicationContext)
@@ -101,6 +123,9 @@ class CameraViewModel(private val activity: CameraActivity, private val app: App
     // Used for navigating to the preview page. Supposed to have content credentials attached if enabled
     private var _lastCapturedMedia: MutableStateFlow<Media?> = MutableStateFlow(null)
     val lastCapturedMedia: StateFlow<Media?> = _lastCapturedMedia
+
+    private val _certificationState = MutableStateFlow<CertificationState>(CertificationState.Idle)
+    val certificationState: StateFlow<CertificationState> = _certificationState
     // Used for rounded thumbnail to immediately show when an image or video is captured
     var _thumbPreviewUri = MutableStateFlow<Media?>(null)
     val thumbPreviewUri: StateFlow<Media?> = _thumbPreviewUri
@@ -603,6 +628,80 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
         )
     }
 
+
+    /**
+     * Full certification pipeline called when the user taps "완료" in PhotoEditScreen:
+     *
+     * 1. Compress [bitmap] to JPEG bytes
+     * 2. Calculate SHA-256 of those bytes
+     * 3. Calculate DCT perceptual hash (pHash) via ru.avicorp.phashcalc
+     * 4. Generate a "TS-XXXXXX" auth ID
+     * 5. Overwrite the MediaStore entry at [uri] with the filtered JPEG
+     * 6. Upload {image, sha256, pHash, authId, timestamp} to the certification server
+     *
+     * Drives [certificationState]; callers observe that flow to update UI.
+     */
+    fun certifyAndSave(
+        uri: android.net.Uri,
+        bitmap: android.graphics.Bitmap,
+        captureTimestampMs: Long
+    ) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            _certificationState.value = CertificationState.Processing
+
+            // 1. Compress to JPEG bytes (single pass — reused for hash, pHash, and disk write)
+            val imageBytes = java.io.ByteArrayOutputStream().also { baos ->
+                bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 95, baos)
+            }.toByteArray()
+
+            val service = CertificationService()
+
+            // 2. SHA-256 — cryptographic integrity fingerprint
+            val sha256 = service.calculateSha256(imageBytes)
+
+            // 3. Perceptual hash — visual-similarity fingerprint (DCT-based)
+            //    Server uses both hashes to classify modifications:
+            //      SHA-256 same               → unmodified
+            //      SHA-256 diff + pHash close → 단순 보정됨 (brightness/contrast/crop)
+            //      SHA-256 diff + pHash far   → 구조 변경 의심
+            val pHash = service.calculatePHash(imageBytes, app.cacheDir)
+
+            // 4. Unique auth ID
+            val authId = service.generateAuthId()
+
+            Timber.d("Certification: authId=%s sha256=%s pHash=%s", authId, sha256, pHash)
+
+            // 5. Save to MediaStore
+            try {
+                app.contentResolver.openOutputStream(uri, "rwt")?.use { os -> os.write(imageBytes) }
+            } catch (e: Exception) {
+                Timber.e(e, "Failed to save edited bitmap to %s", uri)
+            }
+
+            // 6. Upload both hashes + image to server
+            val request = CertificationService.CertificationRequest(
+                imageBytes         = imageBytes,
+                sha256Hash         = sha256,
+                pHash              = pHash,
+                authId             = authId,
+                captureTimestampMs = captureTimestampMs
+            )
+            val result = service.upload(request)
+
+            _certificationState.value = when (result) {
+                is CertificationService.CertificationResult.Success ->
+                    CertificationState.Done(authId, sha256, pHash, uploadedToServer = true)
+                is CertificationService.CertificationResult.Failure ->
+                    CertificationState.Done(authId, sha256, pHash, uploadedToServer = false,
+                        serverError = result.error)
+            }
+        }
+    }
+
+    /** Resets certification state back to Idle (called after the result dialog is dismissed). */
+    fun resetCertificationState() {
+        _certificationState.value = CertificationState.Idle
+    }
 
     @SuppressLint("MissingPermission")
     fun startRecording() {

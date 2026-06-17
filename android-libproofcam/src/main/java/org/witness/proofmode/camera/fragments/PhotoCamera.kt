@@ -98,10 +98,20 @@ fun PhotoCamera(modifier: Modifier = Modifier, cameraViewModel: CameraViewModel 
                 lifecycleOwner: LifecycleOwner = LocalLifecycleOwner.current,
                 onNavigateToVideo: () -> Unit,
                 onNavigateToPreview: () -> Unit,
+                onNavigateToEdit: () -> Unit = {},
                 onClose:()-> Unit = {}) {
 
     val context = LocalContext.current
     val thumbPreviewUri by cameraViewModel.thumbPreviewUri.collectAsStateWithLifecycle()
+
+    // Auto-navigate to edit screen when a new photo is captured
+    val lastCapturedMedia by cameraViewModel.lastCapturedMedia.collectAsStateWithLifecycle()
+    val lastCapturedUri = lastCapturedMedia?.uri
+    LaunchedEffect(lastCapturedUri) {
+        if (lastCapturedUri != null) {
+            onNavigateToEdit()
+        }
+    }
     val surfaceRequest by cameraViewModel.surfaceRequest.collectAsStateWithLifecycle()
     var showGridLines:Boolean by remember {
         mutableStateOf(false)

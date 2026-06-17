@@ -35,7 +35,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "org.witness.proofmode"
+        applicationId = "com.truesnap.app"
         minSdk = 28
         targetSdk = 36
         versionCode = 31030500
@@ -147,7 +147,7 @@ androidComponents {
 }
 
 base {
-    archivesName.set("Proofmode-${android.defaultConfig.versionName}")
+    archivesName.set("TrueSnap-${android.defaultConfig.versionName}")
 }
 
 dependencies {

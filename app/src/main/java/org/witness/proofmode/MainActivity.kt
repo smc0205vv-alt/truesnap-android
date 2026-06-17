@@ -330,11 +330,7 @@ class MainActivity : AppCompatActivity(),
                 return true
             }
 
-            R.id.menu_digital_signatures -> {
-                drawer.closeDrawer(GravityCompat.START)
-                openDigitalSignatures()
-                return true
-            }
+            // MVP: menu_digital_signatures removed (FEATURE_PGP_SIGNING = false)
 
             R.id.menu_verify -> {
                 drawer.closeDrawer(GravityCompat.START)

@@ -47,6 +47,12 @@ import timber.log.Timber;
 
 public class ProofMode {
 
+    // ---- MVP Feature Flags ----
+    // Set to false to disable for MVP; restore to true when ready.
+    public static boolean FEATURE_PGP_SIGNING = false;
+    public static boolean FEATURE_BLOCKCHAIN_NOTARIZATION = false;
+    // ----------------------------
+
     public final static String PREF_OPTION_NOTARY = "autoNotarize";
     public final static String PREF_OPTION_NOTARY_OTS = "autoNotarizeOts";
     public final static String PREF_OPTION_NOTARY_NOSTR = "autoNotarizeNostr";
