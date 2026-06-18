@@ -3,7 +3,6 @@ package org.witness.proofmode.c2pa
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
-import android.location.Location
 import android.os.Build
 import android.preference.PreferenceManager
 import android.security.keystore.KeyGenParameterSpec
@@ -42,7 +41,6 @@ import org.contentauth.c2pa.manifest.ManifestDefinition
 import org.contentauth.c2pa.manifest.ManifestValidator
 import org.json.JSONObject
 import org.witness.proofmode.ProofMode
-import org.witness.proofmode.ProofMode.PREF_OPTION_LOCATION
 import org.witness.proofmode.c2pa.proofsign.CaptureAuthority
 import org.witness.proofmode.c2pa.proofsign.CompromisedEnvironmentException
 import org.witness.proofmode.c2pa.proofsign.ProofSignC2PASigner
@@ -223,16 +221,6 @@ class C2PAManager(private val context: Context, private val preferencesManager: 
             val email = pPrefs.getString(ProofMode.PREF_CREDENTIALS_PRIMARY,"info@proofmode.org")
             val blockAI = pPrefs?.getBoolean(ProofMode.PREF_OPTION_BLOCK_AI, ProofMode.PREF_OPTION_AI_DEFAULT)
 
-            val showLocation = pPrefs?.getBoolean(
-                PREF_OPTION_LOCATION,
-                true
-            )
-
-            var location : Location? = null;
-
-            if (showLocation == true)
-                location = ProofMode.getLatestLocation(context);
-
             val certChain = getDeviceAttestationCertChain(hash)
 
             var listAssertions = ArrayList<AssertionDefinition>()
@@ -241,7 +229,7 @@ class C2PAManager(private val context: Context, private val preferencesManager: 
 
             if (wasCreated) {
                 //only add these for items we create
-                listAssertions.add(createC2PAMetadataAssertion(context, location, inFile, contentType))
+                listAssertions.add(createC2PAMetadataAssertion(context, inFile, contentType))
                 listAssertions.add(createCAWGAssertion(context, blockAI == true, email))
             }
             else
@@ -987,7 +975,7 @@ class C2PAManager(private val context: Context, private val preferencesManager: 
 
     }
 
-    private fun createC2PAMetadataAssertion(context: Context, location: Location?, fileIn: File, contentType: String): AssertionDefinition {
+    private fun createC2PAMetadataAssertion(context: Context, fileIn: File, contentType: String): AssertionDefinition {
 
         // Custom assertion
         return AssertionDefinition.custom(
@@ -1006,28 +994,6 @@ class C2PAManager(private val context: Context, private val preferencesManager: 
                     })
 
                     put ("Iptc4xmpExt:DigitalSourceType","http://cv.iptc.org/newscodes/digitalsourcetype/digitalCapture")
-
-                    location?.let {
-                        put ("exif:GPSVersionID", "2.2.0.0")
-                        put("exif:GPSLatitude", it.latitude.toString())
-                        put("exif:GPSLongitude", it.longitude.toString())
-                        put("exif:GPSAltitude", it.altitude.toString())
-                        put ("exif:GPSHPositioningError", it.accuracy.toString())
-                        put ("exif:GPSSpeed", it.speed.toString())
-                        put ("exif:GPSDestBearing", it.bearing.toString())
-
-
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                            put ("exif:GPSProcessingMethod", "Provider=${location.provider};IsMock=${it.isMock}")
-                        }
-                        else
-                        {
-                            put ("exif:GPSProcessingMethod", "Provider=${location.provider};IsMock=unknown")
-                        }
-
-                        val timestamp = formatIsoTimestamp(Date(it.time))
-                        put("exif:GPSTimeStamp", timestamp)
-                    }
 
                     val exifMake = Build.MANUFACTURER
                     val exifModel = Build.MODEL

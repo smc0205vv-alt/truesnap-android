@@ -3,7 +3,6 @@ package org.witness.proofmode;
 import android.content.Context;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
-import android.location.Location;
 import android.net.Uri;
 import android.os.Build;
 import android.preference.PreferenceManager;
@@ -23,7 +22,6 @@ import org.witness.proofmode.service.PhotosContentJob;
 import org.witness.proofmode.service.PhotosContentWorker;
 import org.witness.proofmode.service.VideosContentJob;
 import org.witness.proofmode.service.VideosContentWorker;
-import org.witness.proofmode.util.GPSTracker;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -56,7 +54,6 @@ public class ProofMode {
     public final static String PREF_OPTION_NOTARY = "autoNotarize";
     public final static String PREF_OPTION_NOTARY_OTS = "autoNotarizeOts";
     public final static String PREF_OPTION_NOTARY_NOSTR = "autoNotarizeNostr";
-    public final static String PREF_OPTION_LOCATION = "trackLocation";
     public final static String PREF_OPTION_PHONE = "trackDeviceId";
     public final static String PREF_OPTION_NETWORK = "trackMobileNetwork";
 
@@ -76,7 +73,6 @@ public class ProofMode {
     public final static boolean PREF_OPTION_NOTARY_DEFAULT = true;
     public final static boolean PREF_OPTION_NOTARY_OTS_DEFAULT = true;
     public final static boolean PREF_OPTION_NOTARY_NOSTR_DEFAULT = true;
-    public final static boolean PREF_OPTION_LOCATION_DEFAULT = false;
     public final static boolean PREF_OPTION_PHONE_DEFAULT = false;
     public final static boolean PREF_OPTION_NETWORK_DEFAULT = false;
 
@@ -119,7 +115,6 @@ public class ProofMode {
     private static File proofFileSystem = null;
     private static CameraEventReceiver mReceiver;
     private static boolean mInit = false;
-    private static GPSTracker mLocationTracker;
 
     static {
         Security.addProvider(sProvider);
@@ -156,21 +151,6 @@ public class ProofMode {
         }
     }
 
-    public static void startLocationListener(Context context) {
-        mLocationTracker = new GPSTracker(context);
-        mLocationTracker.updateLocation();
-    }
-
-    public static Location getLatestLocation (Context context) {
-
-        if (mLocationTracker == null)
-            return null;
-        else if (!mLocationTracker.canGetLocation())
-            return null;
-        else
-            return mLocationTracker.getLocation();
-    }
-
     public static void stopBackgroundService (Context context)
     {
 
@@ -183,9 +163,6 @@ public class ProofMode {
         }
 
         MediaWatcher.getInstance(context).stop();
-
-        if (mLocationTracker != null)
-            mLocationTracker.stopUpdateLocation();
 
         mInit = false;
     }
@@ -219,13 +196,12 @@ public class ProofMode {
     }
 
 
-    public static void setProofPoints(Context context, boolean deviceIds, boolean location, boolean networks, boolean notarization) {
+    public static void setProofPoints(Context context, boolean deviceIds, boolean networks, boolean notarization) {
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
 
         SharedPreferences.Editor editor = prefs.edit();
 
         editor.putBoolean(ProofMode.PREF_OPTION_PHONE, deviceIds);
-        editor.putBoolean(ProofMode.PREF_OPTION_LOCATION, location);
         editor.putBoolean(ProofMode.PREF_OPTION_NOTARY, notarization);
         editor.putBoolean(ProofMode.PREF_OPTION_NETWORK, networks);
 

@@ -2,18 +2,12 @@
 
 package org.witness.proofmode.camera.fragments
 
-import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Application
-import android.content.ContentValues
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
-import android.os.Environment
 import android.os.Handler
 import android.os.Looper
-import android.provider.MediaStore
 import android.util.Range
 import android.util.Rational
 import android.view.Surface
@@ -40,7 +34,7 @@ import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.lifecycle.awaitInstance
 import androidx.camera.video.FallbackStrategy
-import androidx.camera.video.MediaStoreOutputOptions
+import androidx.camera.video.FileOutputOptions
 import androidx.camera.video.Quality
 import androidx.camera.video.QualitySelector
 import androidx.camera.video.Recorder
@@ -75,8 +69,9 @@ import org.witness.proofmode.camera.utils.getSupportedQualities
 import org.witness.proofmode.camera.utils.isUltraHdrSupported
 import org.witness.proofmode.c2pa.proofsign.CaptureAuthority
 import org.witness.proofmode.service.MediaWatcher.Companion.getInstance
-import timber.log.Timber
 import java.io.File
+import java.io.FileOutputStream
+import timber.log.Timber
 import java.io.FileNotFoundException
 import java.security.MessageDigest
 import java.text.SimpleDateFormat
@@ -107,13 +102,7 @@ sealed class CertificationState {
 
 class CameraViewModel(private val activity: CameraActivity, private val app: Application) : AndroidViewModel(app) {
     private val sharedPrefsManager = SharedPrefsManager.newInstance(app.applicationContext)
-    private val outputDirectory: String by lazy {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            "${Environment.DIRECTORY_DCIM}/ProofMode/"
-        } else {
-            "${Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM)}/ProofMode/"
-        }
-    }
+    private val capturesDir: File get() = File(app.filesDir, "captures").also { it.mkdirs() }
     private var _mediaFiles:MutableStateFlow<List<Media>> = MutableStateFlow(emptyList())
     val mediaFiles: StateFlow<List<Media>> = _mediaFiles
     private val mExec = Executors.newSingleThreadExecutor()
@@ -158,7 +147,7 @@ class CameraViewModel(private val activity: CameraActivity, private val app: App
 
     private fun loadMediaFiles() {
         viewModelScope.launch {
-            getMediaFlow(app.applicationContext,outputDirectory)
+            getMediaFlow(app.applicationContext, capturesDir)
                 .collect{ media->
                     _thumbPreviewUri.value = media.firstOrNull()
                     _mediaFiles.value = media
@@ -174,25 +163,17 @@ class CameraViewModel(private val activity: CameraActivity, private val app: App
     fun deleteMedia(media: Media?) {
         viewModelScope.launch(Dispatchers.IO) {
             media?.let {
-                // Get contentResolver
-                val contentResolver = app.applicationContext.contentResolver
-
-                // Delete the media from the content provider (MediaStore)
-                val rowsDeleted = contentResolver.delete(it.uri, null, null)
-
-                if (rowsDeleted > 0) {
-                    // If deletion is successful, remove from the local media list
+                val segment = it.uri.lastPathSegment
+                val deleted = segment?.let { name -> File(capturesDir, name).delete() } == true
+                if (deleted) {
                     val currentList = _mediaFiles.value.toMutableList()
-                    currentList.remove(it)  // Remove the media from the list
-                    _mediaFiles.value = currentList  // Update the media list
-
-                    // If the deleted media was the last captured media, update accordingly
+                    currentList.remove(it)
+                    _mediaFiles.value = currentList
                     if (_lastCapturedMedia.value == it) {
                         _lastCapturedMedia.value = currentList.firstOrNull()
                     }
                 } else {
-                    // Handle failure to delete from the content provider if necessary
-                    Timber.e("Failed to delete media from content provider: ${it.uri}")
+                    Timber.e("Failed to delete capture file: ${it.uri}")
                 }
             }
         }
@@ -202,54 +183,6 @@ class CameraViewModel(private val activity: CameraActivity, private val app: App
 
     private val _shutterFlashTrigger = MutableStateFlow(0)
     val shutterFlashTrigger: StateFlow<Int> = _shutterFlashTrigger
-
-    private val _locationEnabled = MutableStateFlow(
-        PreferenceManager.getDefaultSharedPreferences(app.applicationContext)
-            .getBoolean(ProofMode.PREF_OPTION_LOCATION, ProofMode.PREF_OPTION_LOCATION_DEFAULT)
-                && hasLocationPermission()
-    )
-    val locationEnabled: StateFlow<Boolean> = _locationEnabled
-
-    private val _requestLocationPermission = MutableStateFlow(0)
-    val requestLocationPermission: StateFlow<Int> = _requestLocationPermission
-
-    fun hasLocationPermission(): Boolean {
-        val ctx = app.applicationContext
-        return ContextCompat.checkSelfPermission(
-            ctx, Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED ||
-                ContextCompat.checkSelfPermission(
-                    ctx, Manifest.permission.ACCESS_COARSE_LOCATION
-                ) == PackageManager.PERMISSION_GRANTED
-    }
-
-    fun toggleLocationEnabled() {
-        if (_locationEnabled.value) {
-            setLocationEnabled(false)
-        } else {
-            if (hasLocationPermission()) {
-                setLocationEnabled(true)
-            } else {
-                _requestLocationPermission.update { it + 1 }
-            }
-        }
-    }
-
-    fun setLocationEnabled(enabled: Boolean) {
-        PreferenceManager.getDefaultSharedPreferences(app.applicationContext)
-            .edit()
-            .putBoolean(ProofMode.PREF_OPTION_LOCATION, enabled)
-            .apply()
-        _locationEnabled.value = enabled
-    }
-
-    fun refreshLocationPermissionState() {
-        val pref = PreferenceManager.getDefaultSharedPreferences(app.applicationContext)
-            .getBoolean(ProofMode.PREF_OPTION_LOCATION, ProofMode.PREF_OPTION_LOCATION_DEFAULT)
-        _locationEnabled.value = pref && hasLocationPermission()
-    }
-
-
 
     var lensFacing: MutableLiveData<Int> = MutableLiveData(
         sharedPrefsManager.getInt(SharedPrefsManager.KEY_LENS_FACING, CameraSelector.LENS_FACING_BACK)
@@ -565,34 +498,12 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
     fun captureImage() {
         _shutterFlashTrigger.update { it + 1 }
 
-        val metadata = Metadata().apply {
-            isReversedHorizontal = false //do not mirror
-            // Mirror image when using the front camera
-            //    lensFacing.value == CameraSelector.LENS_FACING_FRONT
-        }
+        val metadata = Metadata().apply { isReversedHorizontal = false }
 
-        MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-        // Options fot the output image file
-        val outputOptions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val contentValues = ContentValues().apply {
-                put(MediaStore.MediaColumns.DISPLAY_NAME, System.currentTimeMillis())
-                put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
-                put(MediaStore.MediaColumns.RELATIVE_PATH, outputDirectory)
-            }
-
-            val contentResolver = app.contentResolver
-
-            // Create the output uri
-            val contentUri =
-                MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
-
-            OutputFileOptions.Builder(contentResolver, contentUri, contentValues)
-        } else {
-
-            File(outputDirectory).mkdirs()
-            val fileMedia = File(outputDirectory, "${System.currentTimeMillis()}.jpg")
-            OutputFileOptions.Builder(fileMedia)
-        }.setMetadata(metadata).build()
+        val outputFile = File(capturesDir, "${System.currentTimeMillis()}.jpg")
+        val outputOptions = OutputFileOptions.Builder(outputFile)
+            .setMetadata(metadata)
+            .build()
 
         imageCapture?.setTargetRotation(activity.getScreenOrientation())
 
@@ -601,30 +512,22 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
             mExec,
             object : OnImageSavedCallback {
                 override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
-                    val savedUri = outputFileResults.savedUri
+                    val savedUri = outputFileResults.savedUri ?: Uri.fromFile(outputFile)
+                    val capturedTime = System.currentTimeMillis()
+                    val newMedia = Media(savedUri, false, capturedTime)
+                    _thumbPreviewUri.value = newMedia
+                    _lastCapturedMedia.value = newMedia
+                    _mediaFiles.value = listOf(newMedia) + mediaFiles.value
 
-                    // Create a temporary image to immediately show in thumbnail.
-                    savedUri?.let {
-                        val capturedTime = System.currentTimeMillis()
-                        val newMedia = Media(it, false, capturedTime)
-                        _thumbPreviewUri.value = newMedia
-
-                        _lastCapturedMedia.value = newMedia
-                        _mediaFiles.value = listOf(newMedia) + mediaFiles.value
-
-                        CoroutineScope(Dispatchers.IO).launch {
-                            sendLocalCameraEvent(it, CameraEventType.NEW_IMAGE)
-
-                        }
+                    CoroutineScope(Dispatchers.IO).launch {
+                        sendLocalCameraEvent(savedUri, CameraEventType.NEW_IMAGE)
                     }
-
                 }
 
                 override fun onError(exception: ImageCaptureException) {
                     Timber.e("Error capturing image")
                 }
             }
-
         )
     }
 
@@ -671,9 +574,9 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
 
             Timber.d("Certification: authId=%s sha256=%s pHash=%s", authId, sha256, pHash)
 
-            // 5. Save to MediaStore
+            // 5. Overwrite the original capture file with the edited JPEG
             try {
-                app.contentResolver.openOutputStream(uri, "rwt")?.use { os -> os.write(imageBytes) }
+                FileOutputStream(uri.toFile()).use { os -> os.write(imageBytes) }
             } catch (e: Exception) {
                 Timber.e(e, "Failed to save edited bitmap to %s", uri)
             }
@@ -708,68 +611,41 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
         videoCapture?.targetRotation = activity.getScreenOrientation()
 
         if (recordingState.value != RecordingState.Idle && recordingState.value != RecordingState.Stopped) return
-        val contentValues = ContentValues().apply {
-            put(MediaStore.Video.Media.DISPLAY_NAME, SimpleDateFormat("yyyy-MM-dd HH-mm:ss", Locale.US)
-                .format(System.currentTimeMillis()))
-            put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
-            put(MediaStore.Video.Media.RELATIVE_PATH, "DCIM/ProofMode")
-        }
+
+        val outputFile = File(
+            capturesDir,
+            "${SimpleDateFormat("yyyy-MM-dd HH-mm-ss", Locale.US).format(Date())}.mp4"
+        )
         startTimer()
 
-        val mediaStoreOutput = MediaStoreOutputOptions.Builder(app.applicationContext.contentResolver,
-            MediaStore.Video.Media.EXTERNAL_CONTENT_URI)
-            .setContentValues(contentValues)
-            .build()
-        recording = recorder?.prepareRecording(app.applicationContext,mediaStoreOutput)
+        val fileOutput = FileOutputOptions.Builder(outputFile).build()
+        recording = recorder?.prepareRecording(app.applicationContext, fileOutput)
             ?.withAudioEnabled()
-            ?.start(ContextCompat.getMainExecutor(app.applicationContext)){ recordEvent->
-                when(recordEvent) {
-                    is VideoRecordEvent.Start-> {
+            ?.start(ContextCompat.getMainExecutor(app.applicationContext)) { recordEvent ->
+                when (recordEvent) {
+                    is VideoRecordEvent.Start -> {
                         _recordingState.update { RecordingState.Recording }
                     }
                     is VideoRecordEvent.Finalize -> {
                         stopTimer()
                         if (!recordEvent.hasError()) {
-
-                            _recordingState.update {  RecordingState.Stopped}
+                            _recordingState.update { RecordingState.Stopped }
 
                             CoroutineScope(Dispatchers.IO).launch {
-
-                                val savedUri: Uri? = recordEvent.outputResults.outputUri
-                                savedUri?.let {
-                                    _thumbPreviewUri.value =
-                                        Media(it, true, System.currentTimeMillis())
-
-
-                                    val capturedTime = System.currentTimeMillis()
-                                    sendLocalCameraEvent(
-                                        it,
-                                        CameraEventType.NEW_VIDEO
-                                    )
-
-                                    val newMedia = savedUri?.let {
-                                        Media(
-                                            it,
-                                            true,
-                                            capturedTime
-                                        )
-                                    }
-                                    newMedia?.let {
-                                        _lastCapturedMedia.value = it
-                                        _mediaFiles.value = listOf(it) + mediaFiles.value
-                                    }
-                                }
+                                val savedUri = recordEvent.outputResults.outputUri
+                                val capturedTime = System.currentTimeMillis()
+                                val newMedia = Media(savedUri, true, capturedTime)
+                                _thumbPreviewUri.value = newMedia
+                                _lastCapturedMedia.value = newMedia
+                                _mediaFiles.value = listOf(newMedia) + mediaFiles.value
+                                sendLocalCameraEvent(savedUri, CameraEventType.NEW_VIDEO)
                             }
                         } else {
                             _recordingState.update { RecordingState.Error("Recording finished with error") }
                         }
                     }
                 }
-
-
             }
-
-
     }
 
     fun pauseRecording() {
@@ -795,26 +671,10 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
 
 
     private fun sendLocalCameraEvent(newMediaFile: Uri, cameraEventType: CameraEventType) {
-
         val mw = getInstance(activity)
-        var prefs = PreferenceManager.getDefaultSharedPreferences(activity)
+        val prefs = PreferenceManager.getDefaultSharedPreferences(activity)
 
-        try {
-
-            app.sendBroadcast(
-                Intent(
-                    Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, newMediaFile
-                )
-            )
-        } catch (e: FileNotFoundException) {
-            e.printStackTrace()
-        }
-
-        // Tell the Activities feed about this capture immediately, before any
-        // (potentially slow) proof generation runs, so the item shows up right
-        // away as PENDING. Proof status updates follow via PROOF_START /
-        // PROOF_GENERATED keyed on this same media URI. Package-targeted so it
-        // reaches our unexported ProofEventReceiver only.
+        // Notify in-app feed immediately (reaches our unexported ProofEventReceiver only).
         app.sendBroadcast(
             Intent(ProofMode.EVENT_MEDIA_CAPTURED).apply {
                 setPackage(app.packageName)
@@ -822,11 +682,7 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
             }
         )
 
-        // Issue a capture-authorization nonce bound to the SHA-256 of the
-        // file CameraX just wrote. The nonce travels with ingestMedia() and
-        // is consumed in MediaWatcher before the C2PA signing call. An
-        // attacker who drives signing via Frida without going through this
-        // capture path will not have a valid nonce, and signing is refused.
+        // Capture-authorization nonce bound to the file SHA-256.
         val captureNonce: ByteArray? = try {
             val digest = computeFileDigest(newMediaFile)
             digest?.let { CaptureAuthority.issueNonce(it) }
@@ -835,33 +691,10 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
             null
         }
 
-        if (cameraEventType == CameraEventType.NEW_VIDEO) {
-
-            if (!prefs.getBoolean(ProofMode.PREFS_DOPROOF,false))
-                 mw?.ingestMedia(newMediaFile, true, null, "video/mp4", null, captureNonce)
-
-
-        } else {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-
-                try {
-                    val f = newMediaFile.toFile()
-                    MediaStore.Images.Media.insertImage(
-                        app.contentResolver,
-                        f.absolutePath, f.name, null
-                    )
-
-                } catch (e: FileNotFoundException) {
-                    e.printStackTrace()
-                }
-            }
-
-            if (!prefs.getBoolean(ProofMode.PREFS_DOPROOF,false))
-                mw?.ingestMedia(newMediaFile, true, null, "image/jpeg", null, captureNonce)
-
+        if (!prefs.getBoolean(ProofMode.PREFS_DOPROOF, false)) {
+            val mimeType = if (cameraEventType == CameraEventType.NEW_VIDEO) "video/mp4" else "image/jpeg"
+            mw?.ingestMedia(newMediaFile, true, null, mimeType, null, captureNonce)
         }
-
-
     }
 
     private fun computeFileDigest(uri: Uri): ByteArray? {

@@ -41,7 +41,6 @@ import org.witness.proofmode.storage.FilebaseStorageProvider
 import org.witness.proofmode.storage.StorageListener
 import org.witness.proofmode.storage.StorageProvider
 import org.witness.proofmode.util.DeviceInfo
-import org.witness.proofmode.util.GPSTracker
 import timber.log.Timber
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -74,9 +73,8 @@ class MediaWatcher : BroadcastReceiver(), ProofModeV1Constants {
     var storageProvider: StorageProvider? = null
     private var mC2paManager: C2PAManager? = null
 
-    private val outputDirectory: String by lazy {
-        "${Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM)}/ProofMode/"
-    }
+    private fun captureOutputDir(): File =
+        File(mContext!!.filesDir, "captures").also { it.mkdirs() }
 
 
     private fun init(context: Context?, storageProvider: StorageProvider?) {
@@ -266,7 +264,7 @@ class MediaWatcher : BroadcastReceiver(), ProofModeV1Constants {
 
                     try {
                         val dateTime = Date().time
-                        fileMedia = File(outputDirectory, "$dateTime-${fileMedia.name}")
+                        fileMedia = File(captureOutputDir(), "$dateTime-${fileMedia.name}")
                         mContext?.contentResolver?.openInputStream(actualUriMedia)
                             ?.copyTo(FileOutputStream(fileMedia))
                         fileMediaOut = fileMedia
@@ -449,17 +447,13 @@ class MediaWatcher : BroadcastReceiver(), ProofModeV1Constants {
 
         val showDeviceIds =
             mPrefs!!.getBoolean(ProofMode.PREF_OPTION_PHONE, ProofMode.PREF_OPTION_PHONE_DEFAULT)
-        val showLocation = mPrefs!!.getBoolean(
-            ProofMode.PREF_OPTION_LOCATION,
-            ProofMode.PREF_OPTION_LOCATION_DEFAULT
-        ) && checkPermissionForLocation(false)
 
         val autoNotarize =
             mPrefs!!.getBoolean(ProofMode.PREF_OPTION_NOTARY, ProofMode.PREF_OPTION_NOTARY_DEFAULT)
         val showMobileNetwork = mPrefs!!.getBoolean(
             ProofMode.PREF_OPTION_NETWORK,
             ProofMode.PREF_OPTION_NETWORK_DEFAULT
-        ) && checkPermissionForLocation(true)
+        )
 
         if (mediaHash != null) {
             try {
@@ -488,7 +482,6 @@ class MediaWatcher : BroadcastReceiver(), ProofModeV1Constants {
                 `is`,
                 mediaHash,
                 showDeviceIds,
-                showLocation,
                 showMobileNetwork,
                 notes,
                 createdAt
@@ -623,16 +616,12 @@ class MediaWatcher : BroadcastReceiver(), ProofModeV1Constants {
 
         val showDeviceIds =
             mPrefs!!.getBoolean(ProofMode.PREF_OPTION_PHONE, ProofMode.PREF_OPTION_PHONE_DEFAULT)
-        val showLocation = mPrefs!!.getBoolean(
-            ProofMode.PREF_OPTION_LOCATION,
-            ProofMode.PREF_OPTION_LOCATION_DEFAULT
-        ) && checkPermissionForLocation(false)
         val autoNotarize =
             mPrefs!!.getBoolean(ProofMode.PREF_OPTION_NOTARY, ProofMode.PREF_OPTION_NOTARY_DEFAULT)
         val showMobileNetwork = mPrefs!!.getBoolean(
             ProofMode.PREF_OPTION_NETWORK,
             ProofMode.PREF_OPTION_NETWORK_DEFAULT
-        )&& checkPermissionForLocation(true)
+        )
 
         val mediaHash = HashUtils.getSHA256FromBytes(mediaBytes)
 
@@ -664,7 +653,6 @@ class MediaWatcher : BroadcastReceiver(), ProofModeV1Constants {
                 ByteArrayInputStream(mediaBytes),
                 mediaHash,
                 showDeviceIds,
-                showLocation,
                 showMobileNetwork,
                 notes,
                 null
@@ -774,18 +762,12 @@ class MediaWatcher : BroadcastReceiver(), ProofModeV1Constants {
 
         val showDeviceIds =
             mPrefs!!.getBoolean(ProofMode.PREF_OPTION_PHONE, ProofMode.PREF_OPTION_PHONE_DEFAULT)
-        val showLocation = mPrefs!!.getBoolean(
-            ProofMode.PREF_OPTION_LOCATION,
-            ProofMode.PREF_OPTION_LOCATION_DEFAULT
-        ) && checkPermissionForLocation(false)
         val autoNotarize =
             mPrefs!!.getBoolean(ProofMode.PREF_OPTION_NOTARY, ProofMode.PREF_OPTION_NOTARY_DEFAULT)
-
-        //this requires FINE location permission to get cell network info
         val showMobileNetwork = mPrefs!!.getBoolean(
             ProofMode.PREF_OPTION_NETWORK,
             ProofMode.PREF_OPTION_NETWORK_DEFAULT
-        )&& checkPermissionForLocation(true)
+        )
 
         var isMedia: InputStream = FileInputStream(fdMedia)
         val mediaHash = HashUtils.getSHA256FromFileContent(isMedia)
@@ -818,7 +800,6 @@ class MediaWatcher : BroadcastReceiver(), ProofModeV1Constants {
                 isMedia,
                 mediaHash,
                 showDeviceIds,
-                showLocation,
                 showMobileNetwork,
                 notes,
                 null
@@ -960,7 +941,7 @@ class MediaWatcher : BroadcastReceiver(), ProofModeV1Constants {
                 ?: "image/jpeg"
 
             // Work on a copy so the original asset (keyed by its current hash) is untouched.
-            val workFile = File(outputDirectory, "${Date().time}-${srcFile.name}")
+            val workFile = File(captureOutputDir(), "${Date().time}-${srcFile.name}")
             try {
                 srcFile.inputStream().use { input ->
                     FileOutputStream(workFile).use { input.copyTo(it) }
@@ -1048,7 +1029,6 @@ class MediaWatcher : BroadcastReceiver(), ProofModeV1Constants {
         `is`: InputStream?,
         mediaHash: String?,
         showDeviceIds: Boolean,
-        showLocation: Boolean,
         showMobileNetwork: Boolean,
         notes: String?,
         createdAt: Date?
@@ -1066,7 +1046,6 @@ class MediaWatcher : BroadcastReceiver(), ProofModeV1Constants {
             uriMedia,
             mediaHash,
             showDeviceIds,
-            showLocation,
             showMobileNetwork,
             notes,
             createdAt
@@ -1144,7 +1123,6 @@ class MediaWatcher : BroadcastReceiver(), ProofModeV1Constants {
         uriMedia: Uri,
         mediaHash: String?,
         showDeviceIds: Boolean,
-        showLocation: Boolean,
         showMobileNetwork: Boolean,
         notes: String?,
         createdAt: Date?
@@ -1212,67 +1190,6 @@ class MediaWatcher : BroadcastReceiver(), ProofModeV1Constants {
         hmProof[ProofModeV1Constants.MANUFACTURER] = DeviceInfo.getDeviceInfo(context, DeviceInfo.Device.DEVICE_MANUFACTURE)
         hmProof[ProofModeV1Constants.SCREEN_SIZE] = DeviceInfo.getDeviceInch(context)
 
-        if (showLocation) {
-            // Reuse the long-lived tracker started in ProofMode.startLocationListener
-            // so we can pick up callback-delivered fixes. The previous per-capture
-            // tracker had no listener registered, making the retry loop a no-op.
-            var loc = ProofMode.getLatestLocation(context)
-            var canGetLocation = loc != null
-            if (loc == null) {
-                val gpsTracker = GPSTracker(context)
-                canGetLocation = gpsTracker.canGetLocation()
-                if (canGetLocation) {
-                    loc = gpsTracker.getLocation()
-                }
-            }
-
-            if (canGetLocation) {
-                if (loc != null) {
-                    hmProof[ProofModeV1Constants.LOCATION_LATITUDE] = loc.getLatitude().toString() + ""
-                    hmProof[ProofModeV1Constants.LOCATION_LONGITUDE] = loc.getLongitude().toString() + ""
-                    hmProof.put(ProofModeV1Constants.LOCATION_PROVIDER, loc.getProvider())
-                    hmProof.put(
-                        ProofModeV1Constants.LOCATION_ACCURACY,
-                        loc.getAccuracy().toString() + ""
-                    )
-                    hmProof.put(
-                        ProofModeV1Constants.LOCATION_ALTITUDE,
-                        loc.getAltitude().toString() + ""
-                    )
-                    hmProof.put(
-                        ProofModeV1Constants.LOCATION_BEARING,
-                        loc.getBearing().toString() + ""
-                    )
-                    hmProof.put(ProofModeV1Constants.LOCATION_SPEED, loc.getSpeed().toString() + "")
-                    hmProof.put(ProofModeV1Constants.LOCATION_TIME, loc.getTime().toString() + "")
-                } else {
-                    hmProof.put(ProofModeV1Constants.LOCATION_LATITUDE, "")
-                    hmProof.put(ProofModeV1Constants.LOCATION_LONGITUDE, "")
-                    hmProof.put(ProofModeV1Constants.LOCATION_PROVIDER, "none")
-                    hmProof.put(ProofModeV1Constants.LOCATION_ACCURACY, "")
-                    hmProof.put(ProofModeV1Constants.LOCATION_ALTITUDE, "")
-                    hmProof.put(ProofModeV1Constants.LOCATION_BEARING, "")
-                    hmProof.put(ProofModeV1Constants.LOCATION_SPEED, "")
-                    hmProof.put(ProofModeV1Constants.LOCATION_TIME, "")
-                }
-            }
-
-            if (showMobileNetwork) hmProof.put(
-                ProofModeV1Constants.CELL_INFO,
-                DeviceInfo.getCellInfo(context)
-            )
-            else hmProof.put(ProofModeV1Constants.CELL_INFO, "none")
-        } else {
-            hmProof.put(ProofModeV1Constants.LOCATION_LATITUDE, "")
-            hmProof.put(ProofModeV1Constants.LOCATION_LONGITUDE, "")
-            hmProof.put(ProofModeV1Constants.LOCATION_PROVIDER, "none")
-            hmProof.put(ProofModeV1Constants.LOCATION_ACCURACY, "")
-            hmProof.put(ProofModeV1Constants.LOCATION_ALTITUDE, "")
-            hmProof.put(ProofModeV1Constants.LOCATION_BEARING, "")
-            hmProof.put(ProofModeV1Constants.LOCATION_SPEED, "")
-            hmProof.put(ProofModeV1Constants.LOCATION_TIME, "")
-        }
-
         hmProof.put(ProofModeV1Constants.SAFETY_CHECK, "false")
         hmProof.put(ProofModeV1Constants.SAFETY_CHECK_BASIC_INTEGRITY, "")
         hmProof.put(ProofModeV1Constants.SAFETY_CHECK_CTS_MATCH, "")
@@ -1291,24 +1208,6 @@ class MediaWatcher : BroadcastReceiver(), ProofModeV1Constants {
             return result == PackageManager.PERMISSION_GRANTED
         }
         return false
-    }
-
-    fun checkPermissionForLocation(fineOnly: Boolean): Boolean {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-
-            if (fineOnly) {
-                return mContext!!.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
-            } else {
-                val resultFine =
-                    mContext!!.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)
-                val resultCoarse =
-                    mContext!!.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
-
-                return (resultFine == PackageManager.PERMISSION_GRANTED
-                        || resultCoarse == PackageManager.PERMISSION_GRANTED)
-            }
-        }
-        return true
     }
 
     fun stop() {

@@ -47,10 +47,9 @@ public class ProofmodeGenerationTests {
         DefaultStorageProvider storageProvider = new DefaultStorageProvider(context);
 
         boolean useDeviceIds = true;
-        boolean useLocation = true;
         boolean useNetworks = true;
         boolean useNotarization = true;
-        ProofMode.setProofPoints(context, useDeviceIds, useLocation, useNetworks, useNotarization);
+        ProofMode.setProofPoints(context, useDeviceIds, useNetworks, useNotarization);
 
         final ByteArrayOutputStream result = new ByteArrayOutputStream();
         final AssetManager assets = context.getAssets();

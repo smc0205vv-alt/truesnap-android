@@ -79,33 +79,6 @@
                     android:text="@string/settings_notary_desc" />
             </LinearLayout>
 
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="0.5"
-                android:gravity="center_horizontal"
-                android:orientation="vertical">
-
-                <CheckBox
-                    android:id="@+id/switchLocation"
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
-                    android:button="@drawable/option_location_selector" />
-
-                <TextView
-                    style="@style/SettingsOptionStyle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/settings_location" />
-
-                <TextView
-                    style="@style/SettingsOptionDescStyle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:id="@+id/textLocationDesc"
-                    android:text="@string/settings_location_desc" />
-            </LinearLayout>
-
         </TableRow>
 
         <TableRow

@@ -4,7 +4,6 @@ import android.Manifest
 import android.accounts.AccountManager
 import android.content.Intent
 import android.content.SharedPreferences
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -14,7 +13,6 @@ import android.widget.CheckBox
 import android.widget.CompoundButton
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.preference.PreferenceManager
 import org.witness.proofmode.PermissionActivity.Companion.hasPermissions
@@ -22,12 +20,10 @@ import org.witness.proofmode.ProofMode.PREF_CREDENTIALS_PRIMARY
 import org.witness.proofmode.databinding.ActivitySettingsBinding
 import org.witness.proofmode.org.witness.proofmode.share.FilebaseSettingsActivity
 import org.witness.proofmode.storage.FilebaseConfig
-import org.witness.proofmode.util.GPSTracker
 
 
 class SettingsActivity : AppCompatActivity() {
     private lateinit var mPrefs: SharedPreferences
-    private lateinit var switchLocation: CheckBox
     private lateinit var switchNetwork: CheckBox
     private lateinit var switchDevice: CheckBox
     private lateinit var switchNotarize: CheckBox
@@ -53,7 +49,6 @@ class SettingsActivity : AppCompatActivity() {
         //supportActionBar?.setDisplayShowTitleEnabled(false)
 
         mPrefs = PreferenceManager.getDefaultSharedPreferences(this)
-        switchLocation = binding.contentSettings.switchLocation
         switchNetwork = binding.contentSettings.switchNetwork
         switchDevice = binding.contentSettings.switchDevice
         switchNotarize = binding.contentSettings.switchNotarize
@@ -64,37 +59,6 @@ class SettingsActivity : AppCompatActivity() {
 
 
         updateUI()
-        switchLocation.setOnLongClickListener { _ ->
-            val intent: Intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-            val uri = Uri.fromParts("package", packageName, null)
-            intent.data = uri
-            startActivity(intent)
-            true
-        }
-        switchLocation.setOnCheckedChangeListener { _: CompoundButton?, isChecked: Boolean ->
-            if (isChecked) {
-                if (hasPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION))||
-                    hasPermissions(this, arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION))
-                )
-                {
-                    mPrefs.edit().putBoolean(ProofMode.PREF_OPTION_LOCATION, true).commit()
-                    refreshLocation()
-                }
-                else if (!askForPermission(
-                        Manifest.permission.ACCESS_FINE_LOCATION,
-                        REQUEST_CODE_LOCATION,
-                        R.layout.permission_location
-                    )
-                ) {
-                    mPrefs.edit().putBoolean(ProofMode.PREF_OPTION_LOCATION, true).commit()
-                    refreshLocation()
-                }
-            } else {
-                mPrefs.edit().putBoolean(ProofMode.PREF_OPTION_LOCATION, false).commit()
-            }
-            updateUI()
-        }
-
 
         switchNetwork.setOnCheckedChangeListener { _: CompoundButton?, isChecked: Boolean ->
             if (isChecked) {
@@ -195,14 +159,6 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun updateUI() {
-        switchLocation.isChecked =
-            mPrefs.getBoolean(
-                ProofMode.PREF_OPTION_LOCATION,
-                ProofMode.PREF_OPTION_LOCATION_DEFAULT
-            )
-
-        updateLocationDesc()
-
         switchNetwork.isChecked =
             mPrefs.getBoolean(
                 ProofMode.PREF_OPTION_NETWORK,
@@ -234,31 +190,6 @@ class SettingsActivity : AppCompatActivity() {
         updateCredentialsDesc()
     }
 
-    private fun updateLocationDesc () {
-
-        val textLocationDesc = binding.contentSettings.textLocationDesc
-
-        val hasFineLocation = ContextCompat.checkSelfPermission(
-            this, Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-
-        val hasCoarseLocation = ContextCompat.checkSelfPermission(
-            this, Manifest.permission.ACCESS_COARSE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-
-        if (hasFineLocation) {
-            // Precise location access (GPS)
-            textLocationDesc.text = getString(R.string.settings_location_desc)
-        } else if (hasCoarseLocation) {
-            // Only approximate location access
-            textLocationDesc.text = getString(R.string.settings_location_desc_approx)
-        } else {
-            // No location access
-
-            textLocationDesc.text = getString(R.string.settings_location_desc_none)
-        }
-    }
-
     private fun updateCredentialsDesc() {
         val textCRDesc = binding.contentSettings.textCRDesc
         val credentialsEnabled = mPrefs.getBoolean(
@@ -284,15 +215,6 @@ class SettingsActivity : AppCompatActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         when (requestCode) {
-            REQUEST_CODE_LOCATION -> {
-                if (hasPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION))||
-                    hasPermissions(this, arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION))
-                    ) {
-                    mPrefs.edit(commit = true) { putBoolean(ProofMode.PREF_OPTION_LOCATION, true) }
-                    refreshLocation()
-                }
-                updateUI()
-            }
             REQUEST_CODE_NETWORK_STATE -> {
                 if (hasPermissions(this, arrayOf(Manifest.permission.ACCESS_NETWORK_STATE))) {
                     mPrefs.edit(commit = true) { putBoolean(ProofMode.PREF_OPTION_NETWORK, true) }
@@ -349,17 +271,8 @@ class SettingsActivity : AppCompatActivity() {
         return false
     }
 
-    private fun refreshLocation() {
-        val gpsTracker = GPSTracker(this)
-        if (gpsTracker.canGetLocation()) {
-            gpsTracker.location
-        }
-    }
-
     companion object {
-        private const val REQUEST_CODE_LOCATION = 1
         private const val REQUEST_CODE_NETWORK_STATE = 2
         private const val REQUEST_CODE_READ_PHONE_STATE = 3
-       // private const val REQUEST_CODE_LOCATION_BACKGROUND = 4
     }
 }

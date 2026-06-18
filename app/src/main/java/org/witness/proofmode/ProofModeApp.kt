@@ -502,9 +502,6 @@ class ProofModeApp : Application(), Configuration.Provider {
 
         }
 
-        ProofMode.startLocationListener(this)
-
-
         initContentCredentials()
     }
 

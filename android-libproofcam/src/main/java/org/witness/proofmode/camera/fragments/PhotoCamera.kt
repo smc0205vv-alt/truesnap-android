@@ -1,9 +1,6 @@
 package org.witness.proofmode.camera.fragments
 
-import android.Manifest
 import android.content.Intent
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.compose.CameraXViewfinder
 import androidx.camera.core.ImageCapture
 import androidx.camera.viewfinder.compose.MutableCoordinateTransformer
@@ -121,27 +118,8 @@ fun PhotoCamera(modifier: Modifier = Modifier, cameraViewModel: CameraViewModel 
     val scope = rememberCoroutineScope()
     var showBSettingsBottomSheet by remember { mutableStateOf(false) }
     val previewAlpha by cameraViewModel.previewAlpha.collectAsStateWithLifecycle()
-    val locationEnabled by cameraViewModel.locationEnabled.collectAsStateWithLifecycle()
-    val requestLocationPermission by cameraViewModel.requestLocationPermission.collectAsStateWithLifecycle()
     val shutterFlashTrigger by cameraViewModel.shutterFlashTrigger.collectAsStateWithLifecycle()
 
-    val locationPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { results ->
-        val granted = results[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
-                results[Manifest.permission.ACCESS_COARSE_LOCATION] == true
-        cameraViewModel.setLocationEnabled(granted)
-    }
-    LaunchedEffect(requestLocationPermission) {
-        if (requestLocationPermission > 0) {
-            locationPermissionLauncher.launch(
-                arrayOf(
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
-                )
-            )
-        }
-    }
     val shutterAlpha = remember { Animatable(0f) }
     LaunchedEffect(shutterFlashTrigger) {
         if (shutterFlashTrigger > 0) {
@@ -352,13 +330,6 @@ fun PhotoCamera(modifier: Modifier = Modifier, cameraViewModel: CameraViewModel 
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp),
                             horizontalArrangement = Arrangement.SpaceEvenly) {
-                            IconButton(onClick = { cameraViewModel.toggleLocationEnabled() }) {
-                                Icon(
-                                    imageVector = ImageVector.vectorResource(R.drawable.ic_location),
-                                    tint = if (locationEnabled) AccentGreen else InactiveWhite,
-                                    contentDescription = stringResource(R.string.toggle_location_description)
-                                )
-                            }
                             IconButton(onClick = {
                                 scope.launch {
                                     showBSettingsBottomSheet = !showBSettingsBottomSheet

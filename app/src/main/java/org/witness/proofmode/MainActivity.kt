@@ -47,7 +47,6 @@ import org.witness.proofmode.org.witness.proofmode.ui.ActivityType
 import org.witness.proofmode.org.witness.proofmode.ui.DataLegendActivity
 import org.witness.proofmode.org.witness.proofmode.ui.DigitalSignaturesActivity
 import org.witness.proofmode.org.witness.proofmode.ui.ProofableItem
-import org.witness.proofmode.util.GPSTracker
 import timber.log.Timber
 import java.io.File
 import java.io.IOException
@@ -515,13 +514,6 @@ class MainActivity : AppCompatActivity(),
         }
     }
 
-    private fun refreshLocation() {
-        val gpsTracker = GPSTracker(this)
-        if (gpsTracker.canGetLocation()) {
-            gpsTracker.location
-        }
-    }
-
     private fun openSettings() {
         val intent = Intent(this@MainActivity, SettingsActivity::class.java)
         startActivity(intent)
@@ -574,13 +566,6 @@ class MainActivity : AppCompatActivity(),
         private var requiredPermissions = arrayOf(
             Manifest.permission.CAMERA
         )
-        //
-        /**
-         * Manifest.permission.ACCESS_FINE_LOCATION
-         * Manifest.permission.ACCESS_MEDIA_LOCATION,
-         *                 Manifest.permission.READ_MEDIA_IMAGES,
-         *                 Manifest.permission.READ_MEDIA_VIDEO,
-         */
         private val optionalPermissions = arrayOf(
             Manifest.permission.ACCESS_NETWORK_STATE,
         )

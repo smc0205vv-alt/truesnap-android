@@ -406,17 +406,6 @@ fun updateMetadata (itemUri : Uri, context : Context) {
             )
 
 
-        if (hmap?.contains(ProofModeV1Constants.LOCATION_LATITUDE) == true) {
-            var lat = hmap?.get(ProofModeV1Constants.LOCATION_LATITUDE)?.toDouble()
-            var loc = hmap?.get(ProofModeV1Constants.LOCATION_LONGITUDE)?.toDouble()
-
-            lat?.let {
-                if (loc != null) {
-                    convertDegMinsSecs(lat, loc)?.let { it1 -> addRow("Location", it1) }
-                }
-            }
-        }
-
         if (hmap?.contains(ProofModeV1Constants.HARDWARE) == true)
             addRow (ProofModeV1Constants.HARDWARE, hmap)
 

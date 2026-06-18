@@ -1,14 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
-        tools:remove="android:maxSdkVersion"
-        />
-    <uses-permission
-        android:name="android.permission.ACCESS_COARSE_LOCATION"
-        tools:remove="android:maxSdkVersion" />
-    <uses-permission
-        android:name="android.permission.ACCESS_FINE_LOCATION"
-        tools:remove="android:maxSdkVersion" />
     <uses-permission
         android:name="android.permission.ACCESS_NETWORK_STATE"
         tools:remove="android:maxSdkVersion" />
@@ -19,14 +10,6 @@
         android:name="android.permission.READ_PHONE_STATE"
         tools:remove="android:maxSdkVersion" />
 
-    <!-- The background media watchers (PhotosContentJob / VideosContentJob) need
-         READ_MEDIA_IMAGES / READ_MEDIA_VIDEO to observe media created by other
-         apps. Google Play restricts those permissions, so they are no longer
-         declared here: an app that enables the watcher feature must declare
-         them itself. -->
-
-    <uses-permission android:name="android.permission.ACCESS_MEDIA_LOCATION"
-        />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
 </manifest>
