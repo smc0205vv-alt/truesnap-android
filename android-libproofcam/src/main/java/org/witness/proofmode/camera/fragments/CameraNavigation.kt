@@ -17,21 +17,22 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import org.witness.proofmode.camera.utils.SharedPrefsManager
 
 @Composable
-fun CameraNavigation(navController:NavHostController,
-                     viewModel: CameraViewModel,
-                     lifecycleOwner: LifecycleOwner,
-                     onClosed:()->Unit
+fun CameraNavigation(
+    navController: NavHostController,
+    viewModel: CameraViewModel,
+    lifecycleOwner: LifecycleOwner,
+    onClosed: () -> Unit
 ) {
-    val context = LocalContext.current
+    val context      = LocalContext.current
     val prefsManager = remember { SharedPrefsManager.newInstance(context) }
-    val savedMode = remember {
+    val savedMode    = remember {
         prefsManager.getString(SharedPrefsManager.KEY_CAMERA_MODE, CameraDestinations.PHOTO)
     }
 
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentDestination = currentBackStackEntry?.destination?.route
+    val currentDestination     = currentBackStackEntry?.destination?.route
     LaunchedEffect(currentDestination) {
-        when(currentBackStackEntry?.destination?.route){
+        when (currentBackStackEntry?.destination?.route) {
             CameraDestinations.PHOTO -> {
                 prefsManager.putString(SharedPrefsManager.KEY_CAMERA_MODE, CameraDestinations.PHOTO)
                 viewModel.unbindAll()
@@ -43,76 +44,85 @@ fun CameraNavigation(navController:NavHostController,
                 viewModel.bindUseCasesForVideo(lifecycleOwner)
             }
             CameraDestinations.PREVIEW -> {}
-            CameraDestinations.EDIT -> {}
+            CameraDestinations.EDIT    -> {}
         }
     }
 
     NavHost(navController = navController, startDestination = savedMode) {
+
         composable(CameraDestinations.PHOTO,
             enterTransition = { fadeIn() },
-            exitTransition = { fadeOut() }
+            exitTransition  = { fadeOut() }
         ) {
-            PhotoCamera(cameraViewModel = viewModel, lifecycleOwner = lifecycleOwner, onNavigateToPreview = {
-                navController.navigate(CameraDestinations.PREVIEW)
-            }, onNavigateToVideo = {
-                navController.navigate(CameraDestinations.VIDEO){
-                    popUpTo(CameraDestinations.PHOTO){
-                        inclusive = true
+            PhotoCamera(
+                cameraViewModel      = viewModel,
+                lifecycleOwner       = lifecycleOwner,
+                onNavigateToPreview  = { navController.navigate(CameraDestinations.PREVIEW) },
+                onNavigateToVideo    = {
+                    navController.navigate(CameraDestinations.VIDEO) {
+                        popUpTo(CameraDestinations.PHOTO) { inclusive = true }
                     }
-                }
-            }, onNavigateToEdit = {
-                navController.navigate(CameraDestinations.EDIT)
-            }, onClose = onClosed)
+                },
+                onNavigateToEdit     = { navController.navigate(CameraDestinations.EDIT) },
+                onClose              = onClosed
+            )
         }
+
         composable(CameraDestinations.VIDEO,
             enterTransition = { fadeIn() },
-            exitTransition = { fadeOut() }) {
-            VideoCamera(cameraViewModel = viewModel,
-                lifecycleOwner = lifecycleOwner,
+            exitTransition  = { fadeOut() }
+        ) {
+            VideoCamera(
+                cameraViewModel        = viewModel,
+                lifecycleOwner         = lifecycleOwner,
                 onNavigateToPhotoCamera = {
-                navController.navigate(CameraDestinations.PHOTO) {
-                    popUpTo(CameraDestinations.VIDEO) {
-                        inclusive = true
+                    navController.navigate(CameraDestinations.PHOTO) {
+                        popUpTo(CameraDestinations.VIDEO) { inclusive = true }
                     }
-                }
-            }, onNavigateBack = {
-                navController.popBackStack()
-            }, onNavigateToPreview = {
-                navController.navigate(CameraDestinations.PREVIEW)
-            }, onClose = onClosed)
+                },
+                onNavigateBack  = { navController.popBackStack() },
+                onNavigateToPreview = { navController.navigate(CameraDestinations.PREVIEW) },
+                onClose         = onClosed
+            )
         }
+
         composable(CameraDestinations.PREVIEW,
             enterTransition = { fadeIn() },
-            exitTransition = { fadeOut() }) {
-            MediaPreview(viewModel = viewModel, modifier = Modifier.fillMaxSize(), onNavigateBack = {
-                navController.popBackStack()
-            })
+            exitTransition  = { fadeOut() }
+        ) {
+            MediaPreview(
+                viewModel       = viewModel,
+                modifier        = Modifier.fillMaxSize(),
+                onNavigateBack  = { navController.popBackStack() }
+            )
         }
+
         composable(CameraDestinations.EDIT,
             enterTransition = { fadeIn() },
-            exitTransition = { fadeOut() }) {
+            exitTransition  = { fadeOut() }
+        ) {
             PhotoEditScreen(
-                viewModel = viewModel,
-                onNavigateBack = { navController.popBackStack() },
-                onNavigateToNickname = {
+                viewModel             = viewModel,
+                onNavigateBack        = { navController.popBackStack() },
+                onNavigateToNickname  = {
                     navController.navigate(CameraDestinations.NICKNAME) {
-                        // Pop EDIT off the stack: back from NICKNAME goes to camera, not edit
                         popUpTo(CameraDestinations.EDIT) { inclusive = true }
                     }
                 }
             )
         }
+
         composable(CameraDestinations.NICKNAME,
             enterTransition = { fadeIn() },
-            exitTransition = { fadeOut() }) {
+            exitTransition  = { fadeOut() }
+        ) {
             NicknameInputScreen(
-                viewModel = viewModel,
-                onConfirmed = {
-                    viewModel.resetCertificationState()
+                viewModel      = viewModel,
+                onConfirmed    = {
+                    // Keep certificationState.Done alive — ShareScreen reads it
                     viewModel.resetUploadState()
-                    // Navigate to next screen (3-10); for now return to camera
-                    navController.navigate(CameraDestinations.PHOTO) {
-                        popUpTo(0) { inclusive = true }
+                    navController.navigate(CameraDestinations.SHARE) {
+                        popUpTo(CameraDestinations.NICKNAME) { inclusive = true }
                     }
                 },
                 onNavigateBack = {
@@ -124,13 +134,31 @@ fun CameraNavigation(navController:NavHostController,
                 }
             )
         }
+
+        composable(CameraDestinations.SHARE,
+            enterTransition = { fadeIn() },
+            exitTransition  = { fadeOut() }
+        ) {
+            CertificationShareScreen(
+                viewModel = viewModel,
+                onDone    = {
+                    viewModel.resetCertificationState()
+                    viewModel.resetUploadState()
+                    viewModel.resetWatermarkState()
+                    navController.navigate(CameraDestinations.PHOTO) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            )
+        }
     }
 }
 
 object CameraDestinations {
-    const val PHOTO = "photo"
-    const val VIDEO = "video"
-    const val PREVIEW = "preview"
-    const val EDIT = "edit"
+    const val PHOTO    = "photo"
+    const val VIDEO    = "video"
+    const val PREVIEW  = "preview"
+    const val EDIT     = "edit"
     const val NICKNAME = "nickname"
+    const val SHARE    = "share"
 }

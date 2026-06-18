@@ -23,9 +23,11 @@
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         tools:node="remove" />
+    <!-- Needed for MediaStore.Images writes on Android 9 (API 28, our minSdk) only.
+         API 29+ writes to MediaStore without this permission. -->
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
-        tools:node="remove" />
+        android:maxSdkVersion="28" />
     <uses-permission
         android:name="android.permission.ACCESS_MEDIA_LOCATION"
         tools:node="remove" />

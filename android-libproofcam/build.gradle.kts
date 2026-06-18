@@ -84,4 +84,7 @@ dependencies {
     // HTTP client for certification upload
     implementation(libs.okhttp)
 
+    // QR code generation for certification result watermark
+    implementation(libs.zxing.core)
+
 }

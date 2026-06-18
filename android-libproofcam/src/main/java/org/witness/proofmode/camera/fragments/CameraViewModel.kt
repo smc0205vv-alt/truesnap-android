@@ -104,6 +104,17 @@ sealed class CertificationState {
     object SessionExpired : CertificationState()
 }
 
+/** State machine for the watermark composition step. */
+sealed class WatermarkState {
+    object Idle : WatermarkState()
+    object Generating : WatermarkState()
+    data class Ready(
+        val bitmap: android.graphics.Bitmap,
+        val shareUri: android.net.Uri
+    ) : WatermarkState()
+    data class Failed(val error: String) : WatermarkState()
+}
+
 /** State machine for the metadata POST to the server after nickname is confirmed. */
 sealed class UploadState {
     object Idle : UploadState()
@@ -130,6 +141,9 @@ class CameraViewModel(private val activity: CameraActivity, private val app: App
 
     private val _uploadState = MutableStateFlow<UploadState>(UploadState.Idle)
     val uploadState: StateFlow<UploadState> = _uploadState
+
+    private val _watermarkState = MutableStateFlow<WatermarkState>(WatermarkState.Idle)
+    val watermarkState: StateFlow<WatermarkState> = _watermarkState
     // Used for rounded thumbnail to immediately show when an image or video is captured
     var _thumbPreviewUri = MutableStateFlow<Media?>(null)
     val thumbPreviewUri: StateFlow<Media?> = _thumbPreviewUri
@@ -625,6 +639,45 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
 
     fun resetUploadState() {
         _uploadState.value = UploadState.Idle
+    }
+
+    fun resetWatermarkState() {
+        _watermarkState.value = WatermarkState.Idle
+    }
+
+    /**
+     * Loads the saved capture file, composites a certification watermark strip
+     * (QR code + authId + TrueSnap branding), and saves a temp JPEG to cacheDir
+     * so it can be shared via FileProvider. Result drives [watermarkState].
+     */
+    fun generateWatermark(authId: String) {
+        val mediaUri = _lastCapturedMedia.value?.uri ?: run {
+            _watermarkState.value = WatermarkState.Failed("캡처 파일을 찾을 수 없습니다")
+            return
+        }
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            _watermarkState.value = WatermarkState.Generating
+            try {
+                val photo = android.graphics.BitmapFactory.decodeFile(mediaUri.toFile().absolutePath)
+                    ?: throw Exception("이미지 디코딩 실패")
+                val watermarked = WatermarkComposer.compose(photo, authId)
+                photo.recycle()
+
+                val tempFile = java.io.File(app.cacheDir, "wm_share_${authId}.jpg")
+                FileOutputStream(tempFile).use {
+                    watermarked.compress(android.graphics.Bitmap.CompressFormat.JPEG, 95, it)
+                }
+                val shareUri = androidx.core.content.FileProvider.getUriForFile(
+                    app,
+                    "${app.packageName}.provider",
+                    tempFile
+                )
+                _watermarkState.value = WatermarkState.Ready(watermarked, shareUri)
+            } catch (e: Exception) {
+                Timber.e(e, "Watermark generation failed")
+                _watermarkState.value = WatermarkState.Failed(e.message ?: "알 수 없는 오류")
+            }
+        }
     }
 
     /**
