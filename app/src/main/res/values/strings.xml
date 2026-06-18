@@ -173,6 +173,7 @@
 
     <string name="start_camera">카메라 시작</string>
     <string name="verify_proof">증명 확인</string>
+    <string name="verify_photo_check">사진으로 인증 확인</string>
     <string name="proof_integrity_verified_success">증명 무결성 확인됨</string>
     <string name="proof_integrity_verified_failed">증명 무결성 검사 실패!</string>
     <string name="pub_key_id">공개키 신원 생성됨:</string>

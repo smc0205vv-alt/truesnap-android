@@ -1,15 +1,11 @@
 package org.witness.proofmode.camera.utils
 
-import android.content.ContentUris
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraMetadata
 import android.net.Uri
-import android.os.Build
-import android.provider.MediaStore
-import android.util.Log
 import android.util.Size
 import android.webkit.MimeTypeMap
 import androidx.annotation.OptIn
@@ -30,7 +26,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.withContext
 import org.witness.proofmode.camera.R
 import org.witness.proofmode.camera.adapter.Media
 import java.io.File
@@ -114,97 +109,20 @@ fun flashModeToIconRes(flashMode: Int): ImageVector {
 
 }
 
-fun getMediaFlow(context: Context, outputDirectory: String): Flow<List<Media>> = flow {
+fun getMediaFlow(context: Context, capturesDir: File): Flow<List<Media>> = flow {
     emit(emptyList())
-    val media = getMedia(context,outputDirectory)
-    emit(media)
+    emit(listCaptureFiles(context, capturesDir))
 }.flowOn(Dispatchers.IO)
 
-
-suspend fun getMedia(context: Context, outputDirectory: String): List<Media> = withContext(Dispatchers.IO) {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-        getMediaQPlus(context, outputDirectory)
-    } else {
-        getMediaQMinus(context, outputDirectory)
-    }
-}
-
-private fun getMediaQPlus(context: Context, outputDirectory: String): List<Media> {
-    val items = mutableListOf<Media>()
-    val contentResolver = context.applicationContext.contentResolver
-
-    contentResolver.query(
-        MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
-        arrayOf(
-            MediaStore.Video.Media._ID,
-            MediaStore.Video.Media.RELATIVE_PATH,
-            MediaStore.Video.Media.DATE_TAKEN,
-        ),
-        null,
-        null,
-        "${MediaStore.Video.Media.DATE_TAKEN} DESC"
-    )?.use { cursor ->
-        val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media._ID)
-        val pathColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.RELATIVE_PATH)
-        val dateColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DATE_TAKEN)
-
-        while (cursor.moveToNext()) {
-            val id = cursor.getLong(idColumn)
-            val path = cursor.getString(pathColumn)
-            val date = cursor.getLong(dateColumn)
-
-            val contentUri: Uri =
-                ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id)
-
-            if (path == outputDirectory) {
-                items.add(Media(contentUri, true, date))
-            }
+private fun listCaptureFiles(context: Context, capturesDir: File): List<Media> {
+    val authority = context.applicationContext.packageName + ".provider"
+    return (capturesDir.listFiles() ?: emptyArray())
+        .filter { it.isFile && (it.extension == "jpg" || it.extension == "mp4") }
+        .sortedByDescending { it.lastModified() }
+        .map { file ->
+            val uri = FileProvider.getUriForFile(context, authority, file)
+            Media(uri, file.extension == "mp4", file.lastModified())
         }
-    }
-
-    contentResolver.query(
-        MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-        arrayOf(
-            MediaStore.Images.Media._ID,
-            MediaStore.Images.Media.RELATIVE_PATH,
-            MediaStore.Images.Media.DATE_TAKEN,
-        ),
-        null,
-        null,
-        "${MediaStore.Images.Media.DATE_TAKEN} DESC"
-    )?.use { cursor ->
-        val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
-        val pathColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.RELATIVE_PATH)
-        val dateColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_TAKEN)
-
-        while (cursor.moveToNext()) {
-            val id = cursor.getLong(idColumn)
-            val path = cursor.getString(pathColumn)
-            val date = cursor.getLong(dateColumn)
-
-            val contentUri: Uri =
-                ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id)
-
-            if (path == outputDirectory) {
-                items.add(Media(contentUri, false, date))
-            }
-        }
-    }
-
-
-    return items.sortedByDescending { it.date }
-}
-
-private fun getMediaQMinus(context: Context, outputDirectory: String): List<Media> {
-    val items = mutableListOf<Media>()
-
-    File(outputDirectory).listFiles()?.forEach {
-        val authority = context.applicationContext.packageName + ".provider"
-        val mediaUri = FileProvider.getUriForFile(context, authority, it)
-        items.add(Media(mediaUri, it.extension == "mp4", it.lastModified()))
-    }
-
-    return items
 }
 
 /**
@@ -214,32 +132,17 @@ private fun getMediaQMinus(context: Context, outputDirectory: String): List<Medi
  * @param videoUri The Uri of the video The uri needs to be a content uri to work.
  * @return A Bitmap thumbnail.
  */
-fun getVideoThumbnail(context: Context, videoUri: Uri,size: ThumbSize = ThumbSize.SMALL): Bitmap {
-    val thumbBounds = when (size) {
-        ThumbSize.SMALL -> Size(840, 640)
-        ThumbSize.LARGE -> Size(1280, 720)
-    }
-
+fun getVideoThumbnail(context: Context, videoUri: Uri, size: ThumbSize = ThumbSize.SMALL): Bitmap {
     try {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            return context.contentResolver.loadThumbnail(videoUri, thumbBounds, null)
-        }
-        return MediaStore.Video.Thumbnails.getThumbnail(
-            context.contentResolver,
-            ContentUris.parseId(videoUri),
-            MediaStore.Video.Thumbnails.FULL_SCREEN_KIND,
-            null
-        )
+        val retriever = android.media.MediaMetadataRetriever()
+        retriever.setDataSource(context, videoUri)
+        val frame = retriever.getFrameAtTime(0)
+        retriever.release()
+        if (frame != null) return frame
     } catch (e: Exception) {
-
-        //couldn't load thumbnail for some reason
-        return BitmapFactory.decodeResource(
-            context.resources,
-            R.drawable.ic_no_picture
-        );
+        // fall through to placeholder
     }
-
-
+    return BitmapFactory.decodeResource(context.resources, R.drawable.ic_no_picture)
 }
 
 

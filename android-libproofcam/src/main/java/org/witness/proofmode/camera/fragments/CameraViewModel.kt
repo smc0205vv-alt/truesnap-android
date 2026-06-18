@@ -561,6 +561,21 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
     }
 
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SECURITY BOUNDARY — CERTIFICATION PIPELINE ONLY
+    //
+    // certifyAndSave() and startCertificationUpload() are the sole entry points
+    // into the registration pipeline. [uri] must originate from _lastCapturedMedia,
+    // which is set exclusively by:
+    //   • ImageCapture.takePicture() → OnImageSavedCallback (CameraX physical capture)
+    //   • VideoRecordEvent.Finalize callback (video recording completion)
+    //   • loadMediaFiles() reading capturesDir (app-private directory)
+    //
+    // _lastCapturedMedia is `private`; no external class can write to it.
+    // VerifyViewModel and VerifyActivity have zero reference to this class,
+    // so an externally-shared image can never reach this pipeline.
+    // ═══════════════════════════════════════════════════════════════════════════
+
     /**
      * On-device certification pipeline called when the user taps "완료" in PhotoEditScreen:
      *

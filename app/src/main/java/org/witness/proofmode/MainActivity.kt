@@ -33,6 +33,7 @@ import org.witness.proofmode.ProofMode.PREF_OPTION_AI_DEFAULT
 import org.witness.proofmode.ProofMode.PREF_OPTION_BLOCK_AI
 import org.witness.proofmode.ProofMode.PREF_OPTION_CREDENTIALS
 import org.witness.proofmode.camera.CameraActivity
+import org.witness.proofmode.verify.VerifyActivity
 import org.witness.proofmode.databinding.ActivityMainBinding
 import org.witness.proofmode.onboarding.OnboardingActivity
 import org.witness.proofmode.org.witness.proofmode.share.ShareProofActivity
@@ -336,6 +337,12 @@ class MainActivity : AppCompatActivity(),
                 openVerify()
                 return true
             }
+
+            R.id.menu_truesnap_verify -> {
+                drawer.closeDrawer(GravityCompat.START)
+                openTrueSnapVerify()
+                return true
+            }
         }
 
         return false
@@ -532,6 +539,10 @@ class MainActivity : AppCompatActivity(),
     private fun openVerify() {
         val browserIntent = Intent(Intent.ACTION_VIEW, "https://check.proofmode.org".toUri())
         startActivity(browserIntent)
+    }
+
+    private fun openTrueSnapVerify() {
+        startActivity(Intent(this, VerifyActivity::class.java))
     }
 
 

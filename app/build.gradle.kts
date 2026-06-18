@@ -182,6 +182,7 @@ dependencies {
     ksp(libs.androidx.room.compiler)
 
     implementation(project(":android-libproofcam"))
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.google.material)
     implementation(libs.androidx.compose.material.icons.core)
 

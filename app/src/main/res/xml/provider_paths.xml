@@ -11,10 +11,18 @@
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!--
+        Captures from the in-app CameraX pipeline, stored in app-private
+        internal storage. Scoped to "captures/" so that PGP keys and proof
+        artefacts at the filesDir root and "proofmode/" subtree remain
+        unreachable via this FileProvider authority.
+    -->
+    <files-path name="captures" path="captures/" />
+
+    <!--
         Proof artefacts written by DefaultStorageProvider:
         <filesDir>/proofmode/<sha256>/{...csv,...json,...asc,...ots}.
         Deliberately scoped to the "proofmode/" subtree so that pkr.asc,
-        pub.asc, and *.cert / *.key files sitting at the top of <filesDir>
+        pub.asc, and *.cert / *.key files at the top of <filesDir>
         remain unreachable via the FileProvider.
     -->
     <files-path name="proof_artefacts" path="proofmode/" />
@@ -27,12 +35,5 @@
         the cache dir, so the wider scope here is acceptable.
     -->
     <cache-path name="share_cache" path="/" />
-
-    <!--
-        Camera output written by the in-app CameraX capture path
-        (MediaWatcher.outputDirectory): public DCIM/ProofMode/ on shared
-        storage. Scoped to that single subdir, not the whole external root.
-    -->
-    <external-path name="camera_output" path="DCIM/ProofMode/" />
 
 </paths>

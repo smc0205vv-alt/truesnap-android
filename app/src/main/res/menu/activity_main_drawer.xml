@@ -28,6 +28,11 @@
             android:icon="@drawable/outline_check"
             android:title="@string/proofcheck_verifier" />
 
+        <item
+            android:id="@+id/menu_truesnap_verify"
+            android:icon="@drawable/outline_check"
+            android:title="@string/verify_photo_check" />
+
         <!--
         <item
             android:id="@+id/menu_background_service"
