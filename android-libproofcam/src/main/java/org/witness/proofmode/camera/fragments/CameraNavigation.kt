@@ -91,9 +91,36 @@ fun CameraNavigation(navController:NavHostController,
         composable(CameraDestinations.EDIT,
             enterTransition = { fadeIn() },
             exitTransition = { fadeOut() }) {
-            PhotoEditScreen(viewModel = viewModel, onNavigateBack = {
-                navController.popBackStack()
-            })
+            PhotoEditScreen(
+                viewModel = viewModel,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToNickname = {
+                    navController.navigate(CameraDestinations.NICKNAME) {
+                        // Pop EDIT off the stack: back from NICKNAME goes to camera, not edit
+                        popUpTo(CameraDestinations.EDIT) { inclusive = true }
+                    }
+                }
+            )
+        }
+        composable(CameraDestinations.NICKNAME,
+            enterTransition = { fadeIn() },
+            exitTransition = { fadeOut() }) {
+            NicknameInputScreen(
+                viewModel = viewModel,
+                onConfirmed = {
+                    viewModel.resetCertificationState()
+                    // Navigate to next screen (3-10); for now return to camera
+                    navController.navigate(CameraDestinations.PHOTO) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                },
+                onNavigateBack = {
+                    viewModel.resetCertificationState()
+                    navController.navigate(CameraDestinations.PHOTO) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            )
         }
     }
 }
@@ -103,4 +130,5 @@ object CameraDestinations {
     const val VIDEO = "video"
     const val PREVIEW = "preview"
     const val EDIT = "edit"
+    const val NICKNAME = "nickname"
 }

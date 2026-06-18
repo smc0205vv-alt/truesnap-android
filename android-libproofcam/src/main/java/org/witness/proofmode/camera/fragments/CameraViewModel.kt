@@ -605,9 +605,40 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
         }
     }
 
-    /** Resets certification state back to Idle (called after the result dialog is dismissed). */
+    /** Resets certification state back to Idle (called after nickname is confirmed or cancelled). */
     fun resetCertificationState() {
         _certificationState.value = CertificationState.Idle
+    }
+
+    /**
+     * Returns recently confirmed names, newest first, up to [MAX_RECENT_NAMES].
+     * Stored as a pipe-delimited string so no JSON dependency is needed.
+     */
+    fun getRecentNames(): List<String> {
+        val raw = sharedPrefsManager.getString(SharedPrefsManager.KEY_RECENT_NAMES, "")
+        return if (raw.isBlank()) emptyList()
+        else raw.split("|").filter { it.isNotBlank() }
+    }
+
+    /**
+     * Locks [nickname] to [authId] and prepends it to the recent-names list.
+     * Duplicates are deduped (same name moved to front). List capped at [MAX_RECENT_NAMES].
+     */
+    fun saveNicknameForAuth(authId: String, nickname: String) {
+        sharedPrefsManager.putString(
+            SharedPrefsManager.NICKNAME_LOCK_PREFIX + authId,
+            nickname
+        )
+        val updated = (listOf(nickname) + getRecentNames().filter { it != nickname })
+            .take(MAX_RECENT_NAMES)
+        sharedPrefsManager.putString(
+            SharedPrefsManager.KEY_RECENT_NAMES,
+            updated.joinToString("|")
+        )
+    }
+
+    companion object {
+        private const val MAX_RECENT_NAMES = 10
     }
 
     @SuppressLint("MissingPermission")

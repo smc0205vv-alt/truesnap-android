@@ -4,7 +4,6 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,7 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -44,7 +42,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.vectorResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -82,7 +79,8 @@ import timber.log.Timber
 @Composable
 fun PhotoEditScreen(
     viewModel: CameraViewModel,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onNavigateToNickname: () -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -161,18 +159,11 @@ fun PhotoEditScreen(
         )
     }
 
-    // --- Certification result dialog ---
-    val doneState = certificationState as? CertificationState.Done
-    if (doneState != null) {
-        CertificationResultDialog(
-            authId     = doneState.authId,
-            sha256Hash = doneState.sha256Hash,
-            pHash      = doneState.pHash,
-            onDismiss  = {
-                viewModel.resetCertificationState()
-                onNavigateBack()
-            }
-        )
+    // Navigate to nickname screen as soon as hashes are ready
+    LaunchedEffect(certificationState) {
+        if (certificationState is CertificationState.Done) {
+            onNavigateToNickname()
+        }
     }
 
     // --- Full-screen processing overlay ---
@@ -340,90 +331,6 @@ fun PhotoEditScreen(
     }
 }
 
-// ---------------------------------------------------------------------------
-// Certification result dialog
-// ---------------------------------------------------------------------------
-
-@Composable
-private fun CertificationResultDialog(
-    authId: String,
-    sha256Hash: String,
-    pHash: String?,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Color(0xFF1E1E1E),
-        title = {
-            Text(
-                text = "✓  인증 완료 (기기 내)",
-                color = AccentGreen,
-                fontWeight = FontWeight.Bold,
-                fontSize = 17.sp
-            )
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                LabeledValue(label = "인증 ID", value = authId, mono = true)
-                LabeledValue(
-                    label = "SHA-256",
-                    value = sha256Hash.take(16) + "…",
-                    mono = true
-                )
-                if (pHash != null) {
-                    LabeledValue(
-                        label = "퍼셉추얼 해시 (pHash)",
-                        value = pHash.take(16) + if (pHash.length > 16) "…" else "",
-                        mono = true
-                    )
-                } else {
-                    StatusRow(ok = false, text = "퍼셉추얼 해시 계산 실패")
-                }
-                Text(
-                    text = "▸ 서버 제출은 다음 단계에서 진행됩니다.",
-                    color = Color(0xFF777777),
-                    fontSize = 11.sp
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("확인", color = AccentGreen, fontWeight = FontWeight.SemiBold)
-            }
-        }
-    )
-}
-
-@Composable
-private fun LabeledValue(label: String, value: String, mono: Boolean = false) {
-    Column {
-        Text(label, color = Color(0xFF888888), fontSize = 11.sp)
-        Text(
-            text = value,
-            color = Color.White,
-            fontSize = 14.sp,
-            fontFamily = if (mono) FontFamily.Monospace else FontFamily.Default,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier
-                .background(Color(0xFF2A2A2A), RoundedCornerShape(4.dp))
-                .padding(horizontal = 8.dp, vertical = 4.dp)
-        )
-    }
-}
-
-@Composable
-private fun StatusRow(ok: Boolean, text: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            text = if (ok) "✓" else "✗",
-            color = if (ok) AccentGreen else Color(0xFFFF6B6B),
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(Modifier.width(6.dp))
-        Text(text, color = Color(0xFFDDDDDD), fontSize = 13.sp)
-    }
-}
 
 // ---------------------------------------------------------------------------
 // Reusable slider row

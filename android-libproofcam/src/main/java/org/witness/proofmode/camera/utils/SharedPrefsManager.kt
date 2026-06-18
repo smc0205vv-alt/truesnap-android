@@ -11,6 +11,9 @@ class SharedPrefsManager private constructor(private val context: Context) {
         const val KEY_LENS_FACING = "lens_facing"
         const val KEY_PHOTO_ASPECT_RATIO = "photo_aspect_ratio"
         const val KEY_PHOTO_QUALITY = "photo_quality"
+        const val KEY_RECENT_NAMES = "recent_names"
+        /** Prefix for per-authId locked nicknames: "${NICKNAME_LOCK_PREFIX}${authId}" */
+        const val NICKNAME_LOCK_PREFIX = "locked_nick_"
 
         @Synchronized
         fun newInstance(context: Context) = SharedPrefsManager(context)
