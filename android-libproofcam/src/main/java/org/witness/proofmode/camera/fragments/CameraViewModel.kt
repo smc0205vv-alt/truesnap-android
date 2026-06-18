@@ -97,10 +97,19 @@ sealed class CertificationState {
     data class Done(
         val authId: String,
         val sha256Hash: String,
-        val pHash: String?
+        val pHash: String?,
+        val captureTimestampMs: Long
     ) : CertificationState()
     /** The capture file is older than [SESSION_MAX_AGE_MS]; redirect user to camera. */
     object SessionExpired : CertificationState()
+}
+
+/** State machine for the metadata POST to the server after nickname is confirmed. */
+sealed class UploadState {
+    object Idle : UploadState()
+    object Uploading : UploadState()
+    data class Success(val authId: String) : UploadState()
+    data class Failure(val authId: String, val error: String) : UploadState()
 }
 
 class CameraViewModel(private val activity: CameraActivity, private val app: Application) : AndroidViewModel(app) {
@@ -118,6 +127,9 @@ class CameraViewModel(private val activity: CameraActivity, private val app: App
 
     private val _certificationState = MutableStateFlow<CertificationState>(CertificationState.Idle)
     val certificationState: StateFlow<CertificationState> = _certificationState
+
+    private val _uploadState = MutableStateFlow<UploadState>(UploadState.Idle)
+    val uploadState: StateFlow<UploadState> = _uploadState
     // Used for rounded thumbnail to immediately show when an image or video is captured
     var _thumbPreviewUri = MutableStateFlow<Media?>(null)
     val thumbPreviewUri: StateFlow<Media?> = _thumbPreviewUri
@@ -598,9 +610,10 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
             }
 
             _certificationState.value = CertificationState.Done(
-                authId    = authId,
-                sha256Hash = sha256,
-                pHash      = pHash
+                authId             = authId,
+                sha256Hash         = sha256,
+                pHash              = pHash,
+                captureTimestampMs = captureTimestampMs
             )
         }
     }
@@ -608,6 +621,40 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
     /** Resets certification state back to Idle (called after nickname is confirmed or cancelled). */
     fun resetCertificationState() {
         _certificationState.value = CertificationState.Idle
+    }
+
+    fun resetUploadState() {
+        _uploadState.value = UploadState.Idle
+    }
+
+    /**
+     * POSTs certification metadata (hashes + nickname) to the server.
+     * No image is sent — only the computed fingerprints and user-supplied nickname.
+     * Drives [uploadState].
+     */
+    fun startCertificationUpload(
+        authId: String,
+        sha256Hash: String,
+        pHash: String?,
+        captureTimestampMs: Long,
+        nickname: String
+    ) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            _uploadState.value = UploadState.Uploading
+            val request = CertificationService.MetadataUploadRequest(
+                authId             = authId,
+                sha256Hash         = sha256Hash,
+                pHash              = pHash,
+                captureTimestampMs = captureTimestampMs,
+                nickname           = nickname
+            )
+            _uploadState.value = when (val result = CertificationService().uploadMetadata(request)) {
+                is CertificationService.MetadataUploadResult.Success ->
+                    UploadState.Success(result.authId)
+                is CertificationService.MetadataUploadResult.Failure ->
+                    UploadState.Failure(result.authId, result.error)
+            }
+        }
     }
 
     /**

@@ -109,6 +109,7 @@ fun CameraNavigation(navController:NavHostController,
                 viewModel = viewModel,
                 onConfirmed = {
                     viewModel.resetCertificationState()
+                    viewModel.resetUploadState()
                     // Navigate to next screen (3-10); for now return to camera
                     navController.navigate(CameraDestinations.PHOTO) {
                         popUpTo(0) { inclusive = true }
@@ -116,6 +117,7 @@ fun CameraNavigation(navController:NavHostController,
                 },
                 onNavigateBack = {
                     viewModel.resetCertificationState()
+                    viewModel.resetUploadState()
                     navController.navigate(CameraDestinations.PHOTO) {
                         popUpTo(0) { inclusive = true }
                     }

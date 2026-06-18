@@ -49,6 +49,9 @@ class CertificationService {
         const val CERTIFICATION_API_URL =
             "https://proofsign-dev.proofmode.org/api/v1/certify"
 
+        /** Metadata-only endpoint — receives JSON, no image file. */
+        const val METADATA_API_URL = "https://YOUR_SERVER_URL.com/api/v1/certify"
+
         private val AUTH_ID_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
         private const val AUTH_ID_LENGTH = 6
         private const val CONNECT_TIMEOUT_MS = 30_000L
@@ -59,12 +62,9 @@ class CertificationService {
     }
 
     // ---------------------------------------------------------------------------
-    // Public data types
+    // Public data types — image upload (legacy, kept for future use)
     // ---------------------------------------------------------------------------
 
-    /**
-     * @param pHash  DCT-based perceptual hash string; null if calculation failed.
-     */
     data class CertificationRequest(
         val imageBytes: ByteArray,
         val sha256Hash: String,
@@ -87,6 +87,34 @@ class CertificationService {
             val pHash: String?,
             val error: String
         ) : CertificationResult()
+    }
+
+    // ---------------------------------------------------------------------------
+    // Public data types — metadata-only upload (current pipeline)
+    // ---------------------------------------------------------------------------
+
+    /**
+     * Payload sent to [METADATA_API_URL]. No image bytes — only hashes + metadata.
+     *
+     * JSON body fields:
+     *   auth_id              — "TS-XXXXXX" client-generated identifier
+     *   sha256_hash          — lowercase hex SHA-256 of the final edited JPEG
+     *   phash                — DCT perceptual hash string (null → omitted)
+     *   capture_timestamp_ms — epoch milliseconds at capture time
+     *   capture_time_utc     — ISO-8601 UTC string of the above
+     *   nickname             — counterparty name entered by the user (not ownership-verified)
+     */
+    data class MetadataUploadRequest(
+        val authId: String,
+        val sha256Hash: String,
+        val pHash: String?,
+        val captureTimestampMs: Long,
+        val nickname: String
+    )
+
+    sealed class MetadataUploadResult {
+        data class Success(val authId: String) : MetadataUploadResult()
+        data class Failure(val authId: String, val error: String) : MetadataUploadResult()
     }
 
     // ---------------------------------------------------------------------------
@@ -143,7 +171,70 @@ class CertificationService {
     }
 
     // ---------------------------------------------------------------------------
-    // Upload
+    // Metadata-only upload (current pipeline)
+    // ---------------------------------------------------------------------------
+
+    /**
+     * POSTs certification metadata as JSON to [METADATA_API_URL]. No image bytes are sent.
+     *
+     * This is a **blocking** call — run it on an IO thread.
+     *
+     * Example request body:
+     * ```json
+     * {
+     *   "auth_id":              "TS-AB12CD",
+     *   "sha256_hash":          "a3f2…",
+     *   "phash":                "123456789abcdef0",
+     *   "capture_timestamp_ms": 1750000000000,
+     *   "capture_time_utc":     "2026-06-18T12:34:56Z",
+     *   "nickname":             "홍길동"
+     * }
+     * ```
+     */
+    fun uploadMetadata(request: MetadataUploadRequest): MetadataUploadResult {
+        val captureTimeUtc = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
+            .apply { timeZone = TimeZone.getTimeZone("UTC") }
+            .format(Date(request.captureTimestampMs))
+
+        val jsonBody = org.json.JSONObject().run {
+            put("auth_id",              request.authId)
+            put("sha256_hash",          request.sha256Hash)
+            if (request.pHash != null) put("phash", request.pHash)
+            put("capture_timestamp_ms", request.captureTimestampMs)
+            put("capture_time_utc",     captureTimeUtc)
+            put("nickname",             request.nickname)
+            toString()
+        }
+
+        val client = OkHttpClient.Builder()
+            .connectTimeout(CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            .readTimeout(READ_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            .build()
+
+        val httpRequest = Request.Builder()
+            .url(METADATA_API_URL)
+            .post(jsonBody.toRequestBody("application/json".toMediaType()))
+            .build()
+
+        return try {
+            val response = client.newCall(httpRequest).execute()
+            val body = response.body?.string().orEmpty()
+            if (response.isSuccessful) {
+                Timber.d("Metadata upload success: authId=%s", request.authId)
+                MetadataUploadResult.Success(request.authId)
+            } else {
+                val msg = "HTTP ${response.code}: $body"
+                Timber.w("Metadata upload failed: %s", msg)
+                MetadataUploadResult.Failure(request.authId, msg)
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "Metadata upload exception")
+            MetadataUploadResult.Failure(request.authId, e.message ?: "Network error")
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Image upload (kept for future use — not called in current pipeline)
     // ---------------------------------------------------------------------------
 
     /**
