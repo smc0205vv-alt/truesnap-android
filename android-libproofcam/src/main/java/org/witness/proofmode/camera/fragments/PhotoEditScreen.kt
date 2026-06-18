@@ -138,16 +138,37 @@ fun PhotoEditScreen(
         onDispose { gpuImageViewRef.value = null }
     }
 
+    // --- Session expired dialog → redirect to camera ---
+    if (certificationState is CertificationState.SessionExpired) {
+        AlertDialog(
+            onDismissRequest = { viewModel.resetCertificationState(); onNavigateBack() },
+            containerColor = Color(0xFF1E1E1E),
+            title = {
+                Text("세션 만료", color = Color(0xFFFF6B6B), fontWeight = FontWeight.Bold, fontSize = 17.sp)
+            },
+            text = {
+                Text(
+                    "세션이 오래되었습니다.\n다시 촬영해주세요.",
+                    color = Color(0xFFDDDDDD),
+                    fontSize = 14.sp
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { viewModel.resetCertificationState(); onNavigateBack() }) {
+                    Text("다시 촬영", color = AccentGreen, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        )
+    }
+
     // --- Certification result dialog ---
     val doneState = certificationState as? CertificationState.Done
     if (doneState != null) {
         CertificationResultDialog(
-            authId           = doneState.authId,
-            sha256Hash       = doneState.sha256Hash,
-            pHash            = doneState.pHash,
-            uploadedToServer = doneState.uploadedToServer,
-            serverError      = doneState.serverError,
-            onDismiss = {
+            authId     = doneState.authId,
+            sha256Hash = doneState.sha256Hash,
+            pHash      = doneState.pHash,
+            onDismiss  = {
                 viewModel.resetCertificationState()
                 onNavigateBack()
             }
@@ -328,8 +349,6 @@ private fun CertificationResultDialog(
     authId: String,
     sha256Hash: String,
     pHash: String?,
-    uploadedToServer: Boolean,
-    serverError: String?,
     onDismiss: () -> Unit
 ) {
     AlertDialog(
@@ -337,7 +356,7 @@ private fun CertificationResultDialog(
         containerColor = Color(0xFF1E1E1E),
         title = {
             Text(
-                text = if (uploadedToServer) "✓  인증 완료" else "인증 완료 (오프라인)",
+                text = "✓  인증 완료 (기기 내)",
                 color = AccentGreen,
                 fontWeight = FontWeight.Bold,
                 fontSize = 17.sp
@@ -351,7 +370,6 @@ private fun CertificationResultDialog(
                     value = sha256Hash.take(16) + "…",
                     mono = true
                 )
-                // pHash — shown as presence indicator; full value lives on server
                 if (pHash != null) {
                     LabeledValue(
                         label = "퍼셉추얼 해시 (pHash)",
@@ -361,24 +379,11 @@ private fun CertificationResultDialog(
                 } else {
                     StatusRow(ok = false, text = "퍼셉추얼 해시 계산 실패")
                 }
-                // Separator
                 Text(
-                    text = "▸ 두 해시가 서버에 저장됩니다. 나중에 SHA-256(무결성)과 pHash(유사도)를 함께 비교해 '단순 보정' vs '구조 변경'을 판정합니다.",
+                    text = "▸ 서버 제출은 다음 단계에서 진행됩니다.",
                     color = Color(0xFF777777),
                     fontSize = 11.sp
                 )
-                if (uploadedToServer) {
-                    StatusRow(ok = true, text = "서버 전송 완료")
-                } else {
-                    StatusRow(ok = false, text = "서버 전송 실패 — 로컬 저장됨")
-                    if (serverError != null) {
-                        Text(
-                            text = serverError.take(80),
-                            color = Color.Gray,
-                            fontSize = 11.sp
-                        )
-                    }
-                }
             }
         },
         confirmButton = {

@@ -79,14 +79,17 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
 
-/** State machine for the post-edit certification + upload flow. */
+/** Captures older than this threshold are rejected before hashing to prevent stale certifications. */
+private const val SESSION_MAX_AGE_MS = 10L * 60 * 1000L
+
+/** State machine for the post-edit certification pipeline. */
 sealed class CertificationState {
     object Idle : CertificationState()
     object Processing : CertificationState()
     /**
-     * Issued regardless of server outcome — [authId], [sha256Hash], and [pHash] are always set.
+     * Hashes and auth ID computed on-device. Server upload is a separate later step.
      *
-     * Server-side classification hint (see [CertificationService] KDoc):
+     * Server-side classification hint (implement on backend):
      *   SHA-256 same                              → 동일 파일
      *   SHA-256 diff + pHash Hamming ≤ 10        → 단순 보정됨
      *   SHA-256 diff + pHash Hamming > 10        → 구조 변경 의심
@@ -94,10 +97,10 @@ sealed class CertificationState {
     data class Done(
         val authId: String,
         val sha256Hash: String,
-        val pHash: String?,
-        val uploadedToServer: Boolean,
-        val serverError: String? = null
+        val pHash: String?
     ) : CertificationState()
+    /** The capture file is older than [SESSION_MAX_AGE_MS]; redirect user to camera. */
+    object SessionExpired : CertificationState()
 }
 
 class CameraViewModel(private val activity: CameraActivity, private val app: Application) : AndroidViewModel(app) {
@@ -533,16 +536,18 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
 
 
     /**
-     * Full certification pipeline called when the user taps "완료" in PhotoEditScreen:
+     * On-device certification pipeline called when the user taps "완료" in PhotoEditScreen:
      *
+     * 0. Session freshness gate — reject captures older than [SESSION_MAX_AGE_MS] (10 min).
+     *    Read from the actual file's lastModified() so the check cannot be bypassed by
+     *    keeping the app open with a stale ViewModel state.
      * 1. Compress [bitmap] to JPEG bytes
-     * 2. Calculate SHA-256 of those bytes
-     * 3. Calculate DCT perceptual hash (pHash) via ru.avicorp.phashcalc
-     * 4. Generate a "TS-XXXXXX" auth ID
-     * 5. Overwrite the MediaStore entry at [uri] with the filtered JPEG
-     * 6. Upload {image, sha256, pHash, authId, timestamp} to the certification server
+     * 2. SHA-256 of those bytes
+     * 3. DCT perceptual hash (pHash) via ru.avicorp:phashcalc (avbase/pHashCalc)
+     * 4. Generate "TS-XXXXXX" auth ID
+     * 5. Overwrite the capture file with the filtered JPEG
      *
-     * Drives [certificationState]; callers observe that flow to update UI.
+     * Server upload is deferred to a later step. Drives [certificationState].
      */
     fun certifyAndSave(
         uri: android.net.Uri,
@@ -552,7 +557,22 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             _certificationState.value = CertificationState.Processing
 
-            // 1. Compress to JPEG bytes (single pass — reused for hash, pHash, and disk write)
+            // 0. Session freshness gate
+            //    Prefer file metadata over the passed-in timestamp so that a long-lived
+            //    app session cannot bypass this check.
+            val fileAgeMs = try {
+                System.currentTimeMillis() - uri.toFile().lastModified()
+            } catch (_: Exception) {
+                System.currentTimeMillis() - captureTimestampMs
+            }
+            if (fileAgeMs > SESSION_MAX_AGE_MS) {
+                Timber.w("Session expired: capture is %d ms old (limit %d ms)", fileAgeMs, SESSION_MAX_AGE_MS)
+                _lastCapturedMedia.value = null
+                _certificationState.value = CertificationState.SessionExpired
+                return@launch
+            }
+
+            // 1. Compress to JPEG bytes (single pass — reused for hash + disk write)
             val imageBytes = java.io.ByteArrayOutputStream().also { baos ->
                 bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 95, baos)
             }.toByteArray()
@@ -562,11 +582,7 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
             // 2. SHA-256 — cryptographic integrity fingerprint
             val sha256 = service.calculateSha256(imageBytes)
 
-            // 3. Perceptual hash — visual-similarity fingerprint (DCT-based)
-            //    Server uses both hashes to classify modifications:
-            //      SHA-256 same               → unmodified
-            //      SHA-256 diff + pHash close → 단순 보정됨 (brightness/contrast/crop)
-            //      SHA-256 diff + pHash far   → 구조 변경 의심
+            // 3. pHash — DCT perceptual hash for visual-similarity comparison
             val pHash = service.calculatePHash(imageBytes, app.cacheDir)
 
             // 4. Unique auth ID
@@ -574,30 +590,18 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
 
             Timber.d("Certification: authId=%s sha256=%s pHash=%s", authId, sha256, pHash)
 
-            // 5. Overwrite the original capture file with the edited JPEG
+            // 5. Overwrite the capture file with the edited JPEG
             try {
                 FileOutputStream(uri.toFile()).use { os -> os.write(imageBytes) }
             } catch (e: Exception) {
                 Timber.e(e, "Failed to save edited bitmap to %s", uri)
             }
 
-            // 6. Upload both hashes + image to server
-            val request = CertificationService.CertificationRequest(
-                imageBytes         = imageBytes,
-                sha256Hash         = sha256,
-                pHash              = pHash,
-                authId             = authId,
-                captureTimestampMs = captureTimestampMs
+            _certificationState.value = CertificationState.Done(
+                authId    = authId,
+                sha256Hash = sha256,
+                pHash      = pHash
             )
-            val result = service.upload(request)
-
-            _certificationState.value = when (result) {
-                is CertificationService.CertificationResult.Success ->
-                    CertificationState.Done(authId, sha256, pHash, uploadedToServer = true)
-                is CertificationService.CertificationResult.Failure ->
-                    CertificationState.Done(authId, sha256, pHash, uploadedToServer = false,
-                        serverError = result.error)
-            }
         }
     }
 
