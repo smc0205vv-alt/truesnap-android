@@ -112,11 +112,12 @@ fun NicknameInputScreen(
                     // Retry with same data
                     doneState?.let {
                         viewModel.startCertificationUpload(
-                            authId             = it.authId,
-                            sha256Hash         = it.sha256Hash,
-                            pHash              = it.pHash,
-                            captureTimestampMs = it.captureTimestampMs,
-                            nickname           = nickname.trim()
+                            authId              = it.authId,
+                            sha256Hash          = it.sha256Hash,
+                            pHash               = it.pHash,
+                            captureTimestampMs  = it.captureTimestampMs,
+                            nickname            = nickname.trim(),
+                            lofiThumbnailBase64 = it.lofiThumbnailBase64
                         )
                     }
                 }) {
@@ -153,7 +154,7 @@ fun NicknameInputScreen(
                 )
             }
             Spacer(Modifier.weight(1f))
-            Text("닉네임 입력", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text("촬영자 닉네임을 설정하세요", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.weight(1f))
             Spacer(Modifier.width(48.dp))
         }
@@ -243,7 +244,7 @@ fun NicknameInputScreen(
             value = nickname,
             onValueChange = { if (!isLocked) nickname = it },
             label = { Text("닉네임") },
-            placeholder = { Text("거래 상대방의 닉네임 입력") },
+            placeholder = { Text("상대방의 닉네임 입력") },
             singleLine = true,
             enabled = !isLocked,
             modifier = Modifier
@@ -278,7 +279,7 @@ fun NicknameInputScreen(
         ) {
             Text(
                 "⚠  이 이름은 당사가 소유를 검증하지 않습니다. " +
-                    "거래 상대방의 실제 닉네임과 같은지 직접 확인하세요.",
+                    "상대방의 실제 닉네임과 같은지 직접 확인하세요.",
                 color = Color(0xFFFFCC44),
                 fontSize = 13.sp,
                 lineHeight = 19.sp
@@ -296,11 +297,12 @@ fun NicknameInputScreen(
                 doneState?.let {
                     viewModel.saveNicknameForAuth(it.authId, nickname.trim())
                     viewModel.startCertificationUpload(
-                        authId             = it.authId,
-                        sha256Hash         = it.sha256Hash,
-                        pHash              = it.pHash,
-                        captureTimestampMs = it.captureTimestampMs,
-                        nickname           = nickname.trim()
+                        authId              = it.authId,
+                        sha256Hash          = it.sha256Hash,
+                        pHash               = it.pHash,
+                        captureTimestampMs  = it.captureTimestampMs,
+                        nickname            = nickname.trim(),
+                        lofiThumbnailBase64 = it.lofiThumbnailBase64
                     )
                 }
             },

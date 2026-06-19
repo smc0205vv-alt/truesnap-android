@@ -25,9 +25,8 @@ import java.util.concurrent.TimeUnit
 class VerificationService {
 
     companion object {
-        // TODO: replace with production endpoints before release
-        const val LOOKUP_URL  = "https://YOUR_SERVER_URL.com/api/v1/certify"
-        const val COMPARE_URL = "https://YOUR_SERVER_URL.com/api/v1/compare"
+        const val LOOKUP_URL  = "https://truesnap-production.up.railway.app/api/v1/certify"
+        const val COMPARE_URL = "https://truesnap-production.up.railway.app/api/v1/compare"
         private const val TIMEOUT_MS = 30_000L
     }
 
@@ -37,6 +36,7 @@ class VerificationService {
         val nickname: String?,
         val sha256Hash: String?,
         val pHash: String?,
+        val lofiThumbnailBase64: String?,
         val rawJson: String
     )
 
@@ -65,15 +65,16 @@ class VerificationService {
             if (response.isSuccessful) {
                 val j = runCatching { JSONObject(body) }.getOrNull()
                 Result.success(LookupResult(
-                    registered     = true,
-                    captureTimeUtc = j?.optString("capture_time_utc")?.takeIf { it.isNotBlank() },
-                    nickname       = j?.optString("nickname")?.takeIf { it.isNotBlank() },
-                    sha256Hash     = j?.optString("sha256_hash")?.takeIf { it.isNotBlank() },
-                    pHash          = j?.optString("phash")?.takeIf { it.isNotBlank() },
-                    rawJson        = body
+                    registered          = true,
+                    captureTimeUtc      = j?.optString("capture_time_utc")?.takeIf { it.isNotBlank() },
+                    nickname            = j?.optString("nickname")?.takeIf { it.isNotBlank() },
+                    sha256Hash          = j?.optString("sha256_hash")?.takeIf { it.isNotBlank() },
+                    pHash               = j?.optString("phash")?.takeIf { it.isNotBlank() },
+                    lofiThumbnailBase64 = j?.optString("lofi_thumbnail")?.takeIf { it.isNotBlank() },
+                    rawJson             = body
                 ))
             } else if (response.code == 404) {
-                Result.success(LookupResult(false, null, null, null, null, body))
+                Result.success(LookupResult(false, null, null, null, null, null, body))
             } else {
                 Result.failure(Exception("HTTP ${response.code}"))
             }

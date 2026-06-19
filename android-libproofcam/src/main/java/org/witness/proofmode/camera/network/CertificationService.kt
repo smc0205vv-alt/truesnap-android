@@ -1,5 +1,7 @@
 package org.witness.proofmode.camera.network
 
+import android.graphics.Bitmap
+import android.util.Base64
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
@@ -7,6 +9,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import ru.avicorp.phashcalc.pHashCalc
 import timber.log.Timber
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.security.MessageDigest
 import java.security.SecureRandom
@@ -45,12 +48,11 @@ import java.util.concurrent.TimeUnit
 class CertificationService {
 
     companion object {
-        // TODO: replace with production endpoint before release
         const val CERTIFICATION_API_URL =
-            "https://proofsign-dev.proofmode.org/api/v1/certify"
+            "https://truesnap-production.up.railway.app/api/v1/certify"
 
         /** Metadata-only endpoint — receives JSON, no image file. */
-        const val METADATA_API_URL = "https://YOUR_SERVER_URL.com/api/v1/certify"
+        const val METADATA_API_URL = "https://truesnap-production.up.railway.app/api/v1/certify"
 
         private val AUTH_ID_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
         private const val AUTH_ID_LENGTH = 6
@@ -103,13 +105,15 @@ class CertificationService {
      *   capture_timestamp_ms — epoch milliseconds at capture time
      *   capture_time_utc     — ISO-8601 UTC string of the above
      *   nickname             — counterparty name entered by the user (not ownership-verified)
+     *   lofi_thumbnail       — base64 PNG of an 8×8 downscale; non-reversible composition hint
      */
     data class MetadataUploadRequest(
         val authId: String,
         val sha256Hash: String,
         val pHash: String?,
         val captureTimestampMs: Long,
-        val nickname: String
+        val nickname: String,
+        val lofiThumbnailBase64: String? = null
     )
 
     sealed class MetadataUploadResult {
@@ -120,6 +124,24 @@ class CertificationService {
     // ---------------------------------------------------------------------------
     // Core utilities
     // ---------------------------------------------------------------------------
+
+    /**
+     * Downscales [bitmap] to 8×8 pixels (no interpolation) and returns it as a
+     * base64-encoded PNG string (~256 bytes). The result is a non-reversible
+     * composition hint — it cannot be used to reconstruct the original image.
+     */
+    fun generateLofiThumbnail(bitmap: Bitmap): String? {
+        return try {
+            val tiny = Bitmap.createScaledBitmap(bitmap, 8, 8, false)
+            val out = ByteArrayOutputStream()
+            tiny.compress(Bitmap.CompressFormat.PNG, 100, out)
+            tiny.recycle()
+            Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
+        } catch (e: Exception) {
+            Timber.e(e, "Lofi thumbnail generation failed")
+            null
+        }
+    }
 
     /** Generates a cryptographically random "TS-XXXXXX" identifier. */
     fun generateAuthId(): String {
@@ -203,6 +225,7 @@ class CertificationService {
             put("capture_timestamp_ms", request.captureTimestampMs)
             put("capture_time_utc",     captureTimeUtc)
             put("nickname",             request.nickname)
+            if (request.lofiThumbnailBase64 != null) put("lofi_thumbnail", request.lofiThumbnailBase64)
             toString()
         }
 

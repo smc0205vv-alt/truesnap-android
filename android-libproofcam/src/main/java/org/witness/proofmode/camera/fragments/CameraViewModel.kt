@@ -98,7 +98,8 @@ sealed class CertificationState {
         val authId: String,
         val sha256Hash: String,
         val pHash: String?,
-        val captureTimestampMs: Long
+        val captureTimestampMs: Long,
+        val lofiThumbnailBase64: String? = null
     ) : CertificationState()
     /** The capture file is older than [SESSION_MAX_AGE_MS]; redirect user to camera. */
     object SessionExpired : CertificationState()
@@ -586,7 +587,8 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
      * 2. SHA-256 of those bytes
      * 3. DCT perceptual hash (pHash) via ru.avicorp:phashcalc (avbase/pHashCalc)
      * 4. Generate "TS-XXXXXX" auth ID
-     * 5. Overwrite the capture file with the filtered JPEG
+     * 5. Lofi thumbnail — 8×8 base64 PNG composition hint
+     * 6. Overwrite the capture file with the filtered JPEG
      *
      * Server upload is deferred to a later step. Drives [certificationState].
      */
@@ -629,9 +631,13 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
             // 4. Unique auth ID
             val authId = service.generateAuthId()
 
-            Timber.d("Certification: authId=%s sha256=%s pHash=%s", authId, sha256, pHash)
+            // 5. Lofi thumbnail — 8×8 downscale of the edited bitmap, non-reversible
+            val lofiThumbnail = service.generateLofiThumbnail(bitmap)
 
-            // 5. Overwrite the capture file with the edited JPEG
+            Timber.d("Certification: authId=%s sha256=%s pHash=%s lofi=%s",
+                authId, sha256, pHash, if (lofiThumbnail != null) "ok" else "null")
+
+            // 6. Overwrite the capture file with the edited JPEG
             try {
                 FileOutputStream(uri.toFile()).use { os -> os.write(imageBytes) }
             } catch (e: Exception) {
@@ -639,10 +645,11 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
             }
 
             _certificationState.value = CertificationState.Done(
-                authId             = authId,
-                sha256Hash         = sha256,
-                pHash              = pHash,
-                captureTimestampMs = captureTimestampMs
+                authId              = authId,
+                sha256Hash          = sha256,
+                pHash               = pHash,
+                captureTimestampMs  = captureTimestampMs,
+                lofiThumbnailBase64 = lofiThumbnail
             )
         }
     }
@@ -705,16 +712,18 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
         sha256Hash: String,
         pHash: String?,
         captureTimestampMs: Long,
-        nickname: String
+        nickname: String,
+        lofiThumbnailBase64: String? = null
     ) {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             _uploadState.value = UploadState.Uploading
             val request = CertificationService.MetadataUploadRequest(
-                authId             = authId,
-                sha256Hash         = sha256Hash,
-                pHash              = pHash,
-                captureTimestampMs = captureTimestampMs,
-                nickname           = nickname
+                authId              = authId,
+                sha256Hash          = sha256Hash,
+                pHash               = pHash,
+                captureTimestampMs  = captureTimestampMs,
+                nickname            = nickname,
+                lofiThumbnailBase64 = lofiThumbnailBase64
             )
             _uploadState.value = when (val result = CertificationService().uploadMetadata(request)) {
                 is CertificationService.MetadataUploadResult.Success ->
