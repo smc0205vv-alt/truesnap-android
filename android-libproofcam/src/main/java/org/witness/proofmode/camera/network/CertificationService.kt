@@ -54,6 +54,9 @@ class CertificationService {
         /** Metadata-only endpoint — receives JSON, no image file. */
         const val METADATA_API_URL = "https://truesnap-production.up.railway.app/api/v1/certify"
 
+        /** Crop-hash registration endpoint — receives multipart image, server recomputes hashes. */
+        const val REGISTER_CROP_BASE_URL = "https://truesnap-production.up.railway.app/api/register-crop"
+
         /** Shared secret injected at compile time from local.properties via BuildConfig. */
         private val API_KEY: String get() = BuildConfig.TRUESNAP_API_KEY
 
@@ -309,6 +312,43 @@ class CertificationService {
         } catch (e: Exception) {
             Timber.e(e, "Metadata upload exception")
             MetadataUploadResult.Failure(request.authId, uploadNetworkError(e))
+        }
+    }
+
+    /**
+     * POSTs the watermarked JPEG to /api/register-crop/:authId so the server recomputes
+     * block hashes and pHash via Python (same algorithm used during verification).
+     * This overwrites the Android-computed hashes stored during metadata upload,
+     * eliminating the Kotlin/Python DCT mismatch that causes false positives.
+     *
+     * Call this after [uploadMetadata] succeeds. Failure is non-fatal — the Android-computed
+     * hashes remain in the DB and verification still works (with slightly higher noise floor).
+     */
+    fun registerCropHashes(authId: String, imageBytes: ByteArray): Boolean {
+        val url = "$REGISTER_CROP_BASE_URL/$authId"
+        val client = OkHttpClient.Builder()
+            .connectTimeout(CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            .readTimeout(READ_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            .build()
+        val body = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart("image", "watermarked.jpg",
+                imageBytes.toRequestBody("image/jpeg".toMediaType()))
+            .build()
+        val request = Request.Builder()
+            .url(url)
+            .addHeader("Authorization", "Bearer $API_KEY")
+            .post(body)
+            .build()
+        return try {
+            val response = client.newCall(request).execute()
+            val ok = response.isSuccessful
+            if (ok) Timber.d("registerCropHashes success: authId=%s", authId)
+            else Timber.w("registerCropHashes failed: HTTP %d authId=%s", response.code, authId)
+            ok
+        } catch (e: Exception) {
+            Timber.e(e, "registerCropHashes exception: authId=%s", authId)
+            false
         }
     }
 

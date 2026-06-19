@@ -144,6 +144,9 @@ class CameraViewModel(private val activity: CameraActivity, private val app: App
     private val _uploadState = MutableStateFlow<UploadState>(UploadState.Idle)
     val uploadState: StateFlow<UploadState> = _uploadState
 
+    /** Watermarked JPEG bytes held until registerCropHashes succeeds, then cleared. */
+    private var _wmBytesForCropReg: ByteArray? = null
+
     private val _watermarkState = MutableStateFlow<WatermarkState>(WatermarkState.Idle)
     val watermarkState: StateFlow<WatermarkState> = _watermarkState
 
@@ -708,6 +711,9 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                 val sha256      = service.calculateSha256(wmBytes)
                 val pHash       = service.calculatePHash(wmBytes)
                 val cropHashes  = service.calculateBlockHashes(wmBytes)
+                // Keep a reference so startCertificationUpload can call registerCropHashes
+                // after the metadata upload succeeds (server recomputes hashes via Python).
+                _wmBytesForCropReg = wmBytes
                 Timber.d("Watermark hashes: sha256=%s pHash=%s blocks=%d",
                     sha256, pHash, cropHashes?.size ?: 0)
 
@@ -754,9 +760,18 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                 lofiThumbnailBase64 = lofiThumbnailBase64,
                 cropHashes          = cropHashes
             )
-            _uploadState.value = when (val result = CertificationService().uploadMetadata(request)) {
-                is CertificationService.MetadataUploadResult.Success ->
+            val service = CertificationService()
+            _uploadState.value = when (val result = service.uploadMetadata(request)) {
+                is CertificationService.MetadataUploadResult.Success -> {
+                    // Overwrite Android-computed hashes with server Python hashes so
+                    // verification uses the same algorithm as registration → dist ≈ 0.
+                    val wmBytes = _wmBytesForCropReg
+                    if (wmBytes != null) {
+                        service.registerCropHashes(authId, wmBytes)
+                        _wmBytesForCropReg = null
+                    }
                     UploadState.Success(result.authId)
+                }
                 is CertificationService.MetadataUploadResult.Failure ->
                     UploadState.Failure(result.authId, result.error)
             }
