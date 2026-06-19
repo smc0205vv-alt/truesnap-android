@@ -128,6 +128,7 @@ fun CameraNavigation(
                 onNavigateBack = {
                     viewModel.resetCertificationState()
                     viewModel.resetUploadState()
+                    viewModel.resetWatermarkState()
                     navController.navigate(CameraDestinations.PHOTO) {
                         popUpTo(0) { inclusive = true }
                     }

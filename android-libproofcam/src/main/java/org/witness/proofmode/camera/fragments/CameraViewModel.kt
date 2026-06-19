@@ -603,6 +603,7 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
     ) {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             _certificationState.value = CertificationState.Processing
+            _watermarkState.value = WatermarkState.Idle
 
             // 0. Session freshness gate
             //    Prefer file metadata over the passed-in timestamp so that a long-lived
