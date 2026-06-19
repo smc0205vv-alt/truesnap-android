@@ -6,6 +6,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import org.witness.proofmode.camera.BuildConfig
 import timber.log.Timber
 import java.util.concurrent.TimeUnit
 
@@ -57,7 +58,11 @@ class VerificationService {
 
     /** GET /certify/{authId} — returns LookupResult(registered=false) on 404. */
     fun lookupRegistration(authId: String): Result<LookupResult> {
-        val request = Request.Builder().url("$LOOKUP_URL/$authId").get().build()
+        val request = Request.Builder()
+            .url("$LOOKUP_URL/$authId")
+            .addHeader("Authorization", "Bearer ${BuildConfig.TRUESNAP_API_KEY}")
+            .get()
+            .build()
         return try {
             val response = client.newCall(request).execute()
             val body = response.body?.string().orEmpty()
