@@ -66,8 +66,8 @@ class CertificationService {
         private const val PHASH_IMG_SIZE = PHASH_SIZE * 4  // 32
 
         /** Fixed block grid for crop-region hashes. Must match server hash_image.py. */
-        const val BLOCK_GRID_COLS = 8
-        const val BLOCK_GRID_ROWS = 8
+        const val BLOCK_GRID_COLS = 16
+        const val BLOCK_GRID_ROWS = 16
     }
 
     // ---------------------------------------------------------------------------
