@@ -12,7 +12,7 @@ import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 
 object WatermarkComposer {
 
-    const val VERIFY_BASE_URL = "https://YOUR_SERVER_URL.com/verify"
+    const val VERIFY_BASE_URL = "https://truesnap-production.up.railway.app/verify"
 
     /**
      * Strip layout (left → right):

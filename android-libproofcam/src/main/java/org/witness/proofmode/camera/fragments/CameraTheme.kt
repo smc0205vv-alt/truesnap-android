@@ -7,7 +7,7 @@ import androidx.compose.ui.graphics.Color
 
 /**
  * A focused dark theme for the camera experience. Surfaces are near-black, text
- * is white and the single accent is the ProofMode brand green. Wrapping the
+ * is white and the single accent is the TrueSnap brand green. Wrapping the
  * camera in this theme keeps the modal sheets, switches, sliders and dialogs
  * visually consistent with the on-viewfinder chrome instead of falling back to
  * the platform's default (often purple-tinted) Material colors.

@@ -428,7 +428,7 @@ fun PhotoCamera(modifier: Modifier = Modifier, cameraViewModel: CameraViewModel 
 
                     Image(
                         painter = painterResource(R.drawable.proofmoderound),
-                        contentDescription = "ProofMode settings",
+                        contentDescription = "TrueSnap 설정",
                         alpha = 0.5f,
                         modifier = Modifier
                             .size(36.dp)

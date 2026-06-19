@@ -21,21 +21,19 @@ import java.io.IOException
 import java.io.InputStream
 
 /**
- * A [NotarizationProvider] that notarizes a ProofMode media hash by publishing it as a
+ * A [NotarizationProvider] that notarizes a TrueSnap media hash by publishing it as a
  * signed note to the Nostr network.
  *
  * Nostr is permission-less: this provider generates its own secp256k1 key (nsec) on first
- * use, persists it privately on-device, and re-uses it as a stable ProofMode notary identity
+ * use, persists it privately on-device, and re-uses it as a stable TrueSnap notary identity
  * for every subsequent note. Each notarization is a Schnorr-signed kind-1 event that embeds
  * the media's SHA-256 hash (both as readable content and as an indexable `x` tag) and is
  * broadcast to a set of public relays.
  *
  * The full signed event (which is self-verifying and can be re-published or looked up on any
- * relay) is handed back to the [NotarizationListener] for storage in the ProofMode hash
+ * relay) is handed back to the [NotarizationListener] for storage in the TrueSnap hash
  * folder as a `.nostr` file, mirroring the way [OpenTimestampsNotarizationProvider] stores
  * its `.ots` proof.
- *
- * Created for ProofMode by adding Nostr as a notarization target.
  */
 class NostrNotarizationProvider(context: Context) : NotarizationProvider {
 
@@ -90,7 +88,7 @@ class NostrNotarizationProvider(context: Context) : NotarizationProvider {
         val signer = NostrSigner.keys(keys)
 
         val content = buildString {
-            append("Proofmode notarization\n")
+            append("TrueSnap notarization\n")
             append("SHA-256: ").append(mediaHash)
             if (!mimeType.isNullOrEmpty()) {
                 append("\nType: ").append(mimeType)
@@ -98,10 +96,10 @@ class NostrNotarizationProvider(context: Context) : NotarizationProvider {
         }
 
         val tags = listOf(
-            Tag.hashtag("proofmode"),
+            Tag.hashtag("truesnap"),
             // Indexable hash tag so the notarization can be looked up by media hash.
             Tag.parse(listOf("x", mediaHash)),
-            Tag.alt("Proofmode media hash notarization")
+            Tag.alt("TrueSnap media hash notarization")
         )
 
         // Sign locally first: the signed event is a complete, self-verifying notarization.

@@ -218,7 +218,7 @@ class C2PAManager(private val context: Context, private val preferencesManager: 
            Timber.d( "Using signing mode: $signingMode")
 
             val pPrefs = PreferenceManager.getDefaultSharedPreferences(context)
-            val email = pPrefs.getString(ProofMode.PREF_CREDENTIALS_PRIMARY,"info@proofmode.org")
+            val email = pPrefs.getString(ProofMode.PREF_CREDENTIALS_PRIMARY,"info@truesnap.app")
             val blockAI = pPrefs?.getBoolean(ProofMode.PREF_OPTION_BLOCK_AI, ProofMode.PREF_OPTION_AI_DEFAULT)
 
             val certChain = getDeviceAttestationCertChain(hash)
@@ -631,8 +631,8 @@ class C2PAManager(private val context: Context, private val preferencesManager: 
             // Use the library's CertificateManager to generate a proper CSR
             val config =
                 CertificateManager.CertificateConfig(
-                    commonName = "Proofmode C2PA Hardware Key",
-                    organization = "Proofmode App Self-Signed",
+                    commonName = "TrueSnap C2PA Hardware Key",
+                    organization = "TrueSnap App Self-Signed",
                     organizationalUnit = "Mobile",
                     country = "US",
                     state = "New York",
