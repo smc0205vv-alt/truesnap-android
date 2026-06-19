@@ -4,13 +4,11 @@ import androidx.camera.compose.CameraXViewfinder
 import androidx.camera.core.ImageCapture
 import androidx.camera.viewfinder.compose.MutableCoordinateTransformer
 import androidx.compose.foundation.Image
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -97,8 +95,6 @@ fun PhotoCamera(modifier: Modifier = Modifier, cameraViewModel: CameraViewModel 
                 onClose:()-> Unit = {}) {
 
     val context = LocalContext.current
-    val thumbPreviewUri by cameraViewModel.thumbPreviewUri.collectAsStateWithLifecycle()
-
     // Auto-navigate to edit screen when a new photo is captured
     val lastCapturedMedia by cameraViewModel.lastCapturedMedia.collectAsStateWithLifecycle()
     val lastCapturedUri = lastCapturedMedia?.uri
@@ -186,7 +182,7 @@ fun PhotoCamera(modifier: Modifier = Modifier, cameraViewModel: CameraViewModel 
                 ConstraintLayout(modifier = Modifier
                     .fillMaxSize()
                     .background(Color.Black)) {
-                    val (viewFinder, topScrim, topBAr, cancelButton, countDownStateView, bottomBg, captureButton, cameraSwitcher, galleryPreview,
+                    val (viewFinder, topScrim, topBAr, cancelButton, countDownStateView, bottomBg, captureButton, cameraSwitcher,
                         flashModeRow) = createRefs()
                     // The viewfinder sits in a full-screen box and is itself sized to the
                     // selected portrait aspect (3:4 / 9:16 / 1:1), so switching ratios visibly
@@ -430,41 +426,6 @@ fun PhotoCamera(modifier: Modifier = Modifier, cameraViewModel: CameraViewModel 
                             },
                             label = if (cameraDelay != CameraDelay.Zero) "${cameraDelay.value}" else null
                         )
-                    }
-
-                    AnimatedVisibility(modifier = Modifier .constrainAs(galleryPreview) {
-                        top.linkTo(captureButton.top)
-                        bottom.linkTo(captureButton.bottom)
-                        end.linkTo(captureButton.start)
-                        start.linkTo(parent.start)
-                    }, visible = countDownState == CountDownState.Idle || countDownState == CountDownState.Completed){
-                        Box(
-                            modifier = Modifier.secondaryControl()
-                        ) {
-                            AnimatedContent(
-                                targetState = thumbPreviewUri,
-                                transitionSpec = {
-                                    fadeIn() togetherWith fadeOut()
-                                },
-                                modifier = Modifier.matchParentSize()
-                            ) { media ->
-                                if (media != null) {
-                                    ItemPreview(modifier = Modifier
-                                        .matchParentSize()
-                                        .clickable {
-                                            onClose()
-                                        }, media = media)
-                                } else {
-                                    Icon(
-                                        imageVector = ImageVector.vectorResource(R.drawable.ic_no_picture) ,
-                                        contentDescription = "No media",
-                                        tint = Color.Gray,
-                                        modifier = Modifier
-                                            .align(Alignment.Center)
-                                    )
-                                }
-                            }
-                        }
                     }
 
                     AnimatedVisibility(
