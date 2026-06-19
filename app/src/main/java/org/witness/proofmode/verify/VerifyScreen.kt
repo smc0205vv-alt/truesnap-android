@@ -406,16 +406,37 @@ private fun LookupResultContent(r: VerificationService.LookupResult) {
 
 @Composable
 private fun CompareResultContent(r: VerificationService.CompareResult) {
-    val (icon, color, label) = when (r.classification) {
-        "identical"              -> Triple("✓", AccentGreen,  "원본과 일치")
-        "minor_edit"             -> Triple("✓", AccentGreen,  "단순 보정됨")
-        "tampered", "suspicious" -> Triple("✗", ErrorRed,     "구조 변경 의심")
-        "unknown"                -> Triple("?", TextSecondary, "pHash 미등록 — 비교 불가")
-        else                     -> Triple("?", TextSecondary, "결과 알 수 없음")
+    data class VerdictUi(val icon: String, val color: Color, val title: String, val subtitle: String = "")
+    val ui = when (r.classification) {
+        "identical" -> VerdictUi(
+            icon     = "✓",
+            color    = AccentGreen,
+            title    = "인증 당시 사진 그대로입니다",
+            subtitle = "이 사진은 TrueSnap으로 촬영된 이후 변경되지 않았습니다."
+        )
+        "minor_edit" -> VerdictUi(
+            icon     = "✓",
+            color    = AccentGreen,
+            title    = "밝기나 색감 조정이 감지됐지만 사진 내용은 동일합니다",
+            subtitle = "사진의 밝기·색감 등이 조정됐지만 촬영된 내용 자체는 바뀌지 않았습니다."
+        )
+        "tampered", "suspicious" -> VerdictUi(
+            icon     = "✗",
+            color    = ErrorRed,
+            title    = "인증 이후 사진 내용이 수정된 것으로 보입니다",
+            subtitle = "인증된 원본과 다른 부분이 감지됐습니다."
+        )
+        "unknown" -> VerdictUi("?", TextSecondary, "pHash 미등록 — 비교 불가")
+        else      -> VerdictUi("?", TextSecondary, "결과 알 수 없음")
     }
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(icon, color = color, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        Text(label, color = color, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+    Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(ui.icon, color = ui.color, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(ui.title, color = ui.color, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            if (ui.subtitle.isNotEmpty()) {
+                Text(ui.subtitle, color = ui.color, fontSize = 12.sp, fontWeight = FontWeight.Normal)
+            }
+        }
     }
 }
 
