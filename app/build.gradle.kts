@@ -38,7 +38,7 @@ android {
         applicationId = "com.truesnap.app"
         minSdk = 28
         targetSdk = 36
-        versionCode = 31030500
+        versionCode = 31030503
         versionName = "3.1.0-RC-5"
         multiDexEnabled = true
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

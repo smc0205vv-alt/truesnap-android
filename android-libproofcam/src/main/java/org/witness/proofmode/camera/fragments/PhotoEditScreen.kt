@@ -2,7 +2,12 @@ package org.witness.proofmode.camera.fragments
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
+import android.graphics.Paint
 import android.net.Uri
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,7 +34,6 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -39,43 +43,52 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import jp.co.cyberagent.android.gpuimage.GPUImage
-import jp.co.cyberagent.android.gpuimage.GPUImageView
-import jp.co.cyberagent.android.gpuimage.filter.GPUImageBrightnessFilter
-import jp.co.cyberagent.android.gpuimage.filter.GPUImageContrastFilter
-import jp.co.cyberagent.android.gpuimage.filter.GPUImageFilterGroup
-import jp.co.cyberagent.android.gpuimage.filter.GPUImageSaturationFilter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.witness.proofmode.camera.R
 import timber.log.Timber
 
-/**
- * Full-screen photo editor shown immediately after capture.
- *
- * Filters (GPU-accelerated):
- *   • 밝기 (Brightness)   –1.0 … +1.0  (default 0.0)
- *   • 채도 (Saturation)    0.0 …  2.0  (default 1.0)
- *   • 대비 (Contrast)      0.5 …  2.0  (default 1.0)
- *
- * "완료" button pipeline:
- *   1. Pull filtered bitmap from GPUImageView
- *   2. SHA-256 hash of JPEG bytes
- *   3. Generate "TS-XXXXXX" auth ID
- *   4. Overwrite MediaStore entry with filtered JPEG
- *   5. POST to certification server
- *   6. Show result dialog → navigate back on dismiss
- *
- * "버리기" returns without touching the file.
- */
+/** Builds a ColorMatrix combining brightness, saturation, and contrast. */
+private fun buildColorMatrix(brightness: Float, saturation: Float, contrast: Float): ColorMatrix {
+    val cm = ColorMatrix()
+
+    // Saturation
+    val sat = ColorMatrix()
+    sat.setSaturation(saturation)
+    cm.postConcat(sat)
+
+    // Contrast + brightness: scale channels then translate
+    val t = ((-0.5f * contrast + 0.5f) + brightness) * 255f
+    val cb = ColorMatrix(floatArrayOf(
+        contrast, 0f, 0f, 0f, t,
+        0f, contrast, 0f, 0f, t,
+        0f, 0f, contrast, 0f, t,
+        0f, 0f, 0f, 1f, 0f
+    ))
+    cm.postConcat(cb)
+
+    return cm
+}
+
+/** Applies [matrix] to [src] and returns a new Bitmap. */
+private fun applyColorMatrix(src: Bitmap, matrix: ColorMatrix): Bitmap {
+    val out = Bitmap.createBitmap(src.width, src.height, Bitmap.Config.ARGB_8888)
+    val paint = Paint().apply { colorFilter = ColorMatrixColorFilter(matrix) }
+    Canvas(out).drawBitmap(src, 0f, 0f, paint)
+    return out
+}
+
 @Composable
 fun PhotoEditScreen(
     viewModel: CameraViewModel,
@@ -84,22 +97,19 @@ fun PhotoEditScreen(
 ) {
     val context = LocalContext.current
 
-    val lastMedia         by viewModel.lastCapturedMedia.collectAsStateWithLifecycle()
+    val lastMedia          by viewModel.lastCapturedMedia.collectAsStateWithLifecycle()
     val certificationState by viewModel.certificationState.collectAsStateWithLifecycle()
-    val uri: Uri?          = lastMedia?.uri
-    val captureTimestamp   = lastMedia?.date ?: 0L
+    val uri: Uri?           = lastMedia?.uri
+    val captureTimestamp    = lastMedia?.date ?: 0L
 
-    // Filter state — reset when a new image arrives
-    var brightness by remember(uri) { mutableFloatStateOf(0f) }   // -1.0 … 1.0
-    var saturation by remember(uri) { mutableFloatStateOf(1f) }   //  0.0 … 2.0
-    var contrast   by remember(uri) { mutableFloatStateOf(1f) }   //  0.5 … 2.0
+    var brightness by remember(uri) { mutableFloatStateOf(0f) }
+    var saturation by remember(uri) { mutableFloatStateOf(1f) }
+    var contrast   by remember(uri) { mutableFloatStateOf(1f) }
 
     var sourceBitmap by remember(uri) { mutableStateOf<Bitmap?>(null) }
     var isLoading    by remember(uri) { mutableStateOf(true) }
 
-    val gpuImageViewRef = remember { mutableStateOf<GPUImageView?>(null) }
-
-    // --- Load bitmap on IO thread ---
+    // Load bitmap on IO thread
     LaunchedEffect(uri) {
         if (uri == null) return@LaunchedEffect
         isLoading = true
@@ -114,29 +124,16 @@ fun PhotoEditScreen(
         isLoading = false
     }
 
-    // --- Apply GPU filters when sliders or bitmap change ---
-    val filterGroup = remember(brightness, saturation, contrast) {
-        GPUImageFilterGroup(listOf(
-            GPUImageBrightnessFilter(brightness),
-            GPUImageSaturationFilter(saturation),
-            GPUImageContrastFilter(contrast)
-        ))
+    // Build ColorFilter for live preview (applied in Compose — no bitmap copy needed)
+    val colorFilter = remember(brightness, saturation, contrast) {
+        ColorFilter.colorMatrix(
+            androidx.compose.ui.graphics.ColorMatrix(
+                buildColorMatrix(brightness, saturation, contrast).array
+            )
+        )
     }
 
-    LaunchedEffect(filterGroup, sourceBitmap) {
-        val view = gpuImageViewRef.value ?: return@LaunchedEffect
-        val bmp  = sourceBitmap          ?: return@LaunchedEffect
-        withContext(Dispatchers.Main) {
-            view.filter = filterGroup
-            view.setImage(bmp)
-        }
-    }
-
-    DisposableEffect(Unit) {
-        onDispose { gpuImageViewRef.value = null }
-    }
-
-    // --- Session expired dialog → redirect to camera ---
+    // Session expired dialog
     if (certificationState is CertificationState.SessionExpired) {
         AlertDialog(
             onDismissRequest = { viewModel.resetCertificationState(); onNavigateBack() },
@@ -159,18 +156,15 @@ fun PhotoEditScreen(
         )
     }
 
-    // Navigate to nickname screen as soon as hashes are ready
     LaunchedEffect(certificationState) {
         if (certificationState is CertificationState.Done) {
             onNavigateToNickname()
         }
     }
 
-    // --- Full-screen processing overlay ---
     val isProcessing = certificationState is CertificationState.Processing
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // Main editor column
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -203,31 +197,27 @@ fun PhotoEditScreen(
                 Spacer(Modifier.width(48.dp))
             }
 
-            // Preview area
+            // Preview — ColorFilter applied directly in Compose, no bitmap copy
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
                 contentAlignment = Alignment.Center
             ) {
-                if (isLoading) {
-                    CircularProgressIndicator(color = AccentGreen)
-                } else if (sourceBitmap != null) {
-                    AndroidView(
-                        factory = { ctx ->
-                            GPUImageView(ctx).apply {
-                                setScaleType(GPUImage.ScaleType.CENTER_INSIDE)
-                                gpuImageViewRef.value = this
-                            }
-                        },
+                when {
+                    isLoading -> CircularProgressIndicator(color = AccentGreen)
+                    sourceBitmap != null -> Image(
+                        bitmap = sourceBitmap!!.asImageBitmap(),
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        colorFilter = colorFilter,
                         modifier = Modifier.fillMaxSize()
                     )
-                } else {
-                    Text("이미지를 불러올 수 없습니다.", color = Color.White)
+                    else -> Text("이미지를 불러올 수 없습니다.", color = Color.White)
                 }
             }
 
-            // Sliders panel
+            // Sliders
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -287,11 +277,9 @@ fun PhotoEditScreen(
                 Button(
                     onClick = {
                         if (isProcessing || uri == null) return@Button
-                        val view = gpuImageViewRef.value ?: return@Button
-                        val filtered = view.gpuImage?.bitmapWithFilterApplied ?: sourceBitmap
-                        if (filtered != null) {
-                            viewModel.certifyAndSave(uri, filtered, captureTimestamp)
-                        }
+                        val src = sourceBitmap ?: return@Button
+                        val filtered = applyColorMatrix(src, buildColorMatrix(brightness, saturation, contrast))
+                        viewModel.certifyAndSave(uri, filtered, captureTimestamp)
                     },
                     modifier = Modifier.weight(1f),
                     enabled = !isProcessing && sourceBitmap != null,
@@ -313,7 +301,7 @@ fun PhotoEditScreen(
             }
         }
 
-        // Semi-transparent processing overlay
+        // Processing overlay
         if (isProcessing) {
             Box(
                 modifier = Modifier

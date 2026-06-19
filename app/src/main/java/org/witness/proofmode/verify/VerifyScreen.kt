@@ -120,7 +120,7 @@ fun VerifyScreen(
             Text("인증 확인 방법", color = AccentGreen, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             GuideStep(
                 step = "1",
-                text = "촬영자에게 받은 사진을 길게 눌러 갤러리에 저장하세요."
+                text = "촬영자에게 받은 사진, 또는 캡처한 사진을 저장하거나 앱으로 공유해주세요."
             )
             GuideStep(
                 step = "2",
@@ -402,38 +402,20 @@ private fun LookupResultContent(r: VerificationService.LookupResult) {
     if (!r.nickname.isNullOrBlank()) {
         DetailRow(label = "등록 닉네임", value = r.nickname)
     }
-    if (!r.sha256Hash.isNullOrBlank()) {
-        DetailRow(
-            label = "SHA-256",
-            value = r.sha256Hash.take(20) + "…",
-            mono  = true
-        )
-    }
 }
 
 @Composable
 private fun CompareResultContent(r: VerificationService.CompareResult) {
     val (icon, color, label) = when (r.classification) {
-        "identical"   -> Triple("✓", AccentGreen,  "원본과 동일")
-        "minor_edit"  -> Triple("△", WarnYellow,   "단순 보정됨 (밝기·채도·대비 등)")
-        "tampered"    -> Triple("✗", ErrorRed,      "구조 변경 의심")
-        else          -> Triple("?", TextSecondary, "결과 알 수 없음")
+        "identical"            -> Triple("✓", AccentGreen,  "원본과 동일")
+        "minor_edit"           -> Triple("✓", AccentGreen,  "단순 보정됨")
+        "tampered", "suspicious" -> Triple("✗", ErrorRed,   "구조 변경 의심")
+        "unknown"              -> Triple("?", TextSecondary, "pHash 미등록 — 비교 불가")
+        else                   -> Triple("?", TextSecondary, "결과 알 수 없음")
     }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(icon, color = color, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Text(label, color = color, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-    }
-    r.sha256Match?.let {
-        DetailRow(label = "SHA-256 일치", value = if (it) "예 (비트 단위 동일)" else "아니오 (파일 변경됨)")
-    }
-    r.pHashHamming?.let { hamming ->
-        val desc = when {
-            hamming == 0        -> "완전 동일"
-            hamming <= 5        -> "거의 동일"
-            hamming <= 10       -> "유사 (단순 보정 범위)"
-            else                -> "차이 큼 (구조 변경 의심)"
-        }
-        DetailRow(label = "pHash 해밍 거리", value = "$hamming  ← $desc")
     }
 }
 

@@ -1,9 +1,22 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.ksp)
     alias(libs.plugins.navigation.safeargs)
     alias(libs.plugins.kotlin.compose)
 }
+
+// API key is read from local.properties (git-ignored) at compile time and baked
+// into BuildConfig.TRUESNAP_API_KEY so it never appears in source code.
+// For CI, write the key into local.properties before the build step, e.g.:
+//   echo "TRUESNAP_API_KEY=${{ secrets.TRUESNAP_API_KEY }}" >> local.properties
+val localProps = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.canRead()) f.inputStream().use { load(it) }
+}
+val truesnapApiKey: String = localProps.getProperty("TRUESNAP_API_KEY")
+    ?: error("TRUESNAP_API_KEY not found in local.properties")
 
 android {
     compileSdk = 36
@@ -12,6 +25,7 @@ android {
     defaultConfig {
         minSdk = 28
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "TRUESNAP_API_KEY", "\"$truesnapApiKey\"")
     }
     buildTypes {
         getByName("release") {
@@ -27,6 +41,7 @@ android {
     buildFeatures {
         viewBinding = true
         compose = true
+        buildConfig = true
     }
 }
 
@@ -74,12 +89,6 @@ dependencies {
 
     //logging
     implementation(libs.timber)
-
-    // GPUImage for real-time photo filters
-    implementation(libs.gpuimage)
-
-    // pHashCalc — perceptual hashing for image similarity detection
-    implementation(libs.phashcalc)
 
     // HTTP client for certification upload
     implementation(libs.okhttp)

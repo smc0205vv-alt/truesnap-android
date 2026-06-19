@@ -47,6 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import android.widget.Toast
 import timber.log.Timber
 
 @Composable
@@ -68,16 +69,12 @@ fun CertificationShareScreen(
     ) { granted ->
         if (granted) {
             val ready = watermarkState as? WatermarkState.Ready ?: return@rememberLauncherForActivityResult
-            saveMessage = saveToGallery(context, ready.bitmap, doneState?.authId ?: "unknown")
+            val msg = saveToGallery(context, ready.bitmap, doneState?.authId ?: "unknown")
+            saveMessage = msg
+            Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
         } else {
             saveMessage = "저장 권한이 거부되었습니다"
-        }
-    }
-
-    // Generate watermark as soon as screen opens
-    LaunchedEffect(doneState?.authId) {
-        if (doneState != null && watermarkState is WatermarkState.Idle) {
-            viewModel.generateWatermark(doneState.authId)
+            Toast.makeText(context, "저장 권한이 거부되었습니다", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -201,9 +198,9 @@ fun CertificationShareScreen(
                         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
                             permissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
                         } else {
-                            saveMessage = saveToGallery(
-                                context, state.bitmap, doneState?.authId ?: "unknown"
-                            )
+                            val msg = saveToGallery(context, state.bitmap, doneState?.authId ?: "unknown")
+                            saveMessage = msg
+                            Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
                         }
                     }
                 },
@@ -218,7 +215,7 @@ fun CertificationShareScreen(
                 onClick = onDone,
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             ) {
-                Text("완료 (카메라로 돌아가기)", color = Color(0xFF888888))
+                Text("홈으로 돌아가기", color = Color(0xFF888888))
             }
         }
     }

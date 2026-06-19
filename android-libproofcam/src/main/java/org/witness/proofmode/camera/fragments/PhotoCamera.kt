@@ -1,6 +1,5 @@
 package org.witness.proofmode.camera.fragments
 
-import android.content.Intent
 import androidx.camera.compose.CameraXViewfinder
 import androidx.camera.core.ImageCapture
 import androidx.camera.viewfinder.compose.MutableCoordinateTransformer
@@ -70,7 +69,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
@@ -188,8 +186,8 @@ fun PhotoCamera(modifier: Modifier = Modifier, cameraViewModel: CameraViewModel 
                 ConstraintLayout(modifier = Modifier
                     .fillMaxSize()
                     .background(Color.Black)) {
-                    val (viewFinder, topScrim, topBAr, cancelButton, countDownStateView, bottomBg, captureButton, cameraSwitcher, galleryPreview, cameraText,
-                        flashModeRow, logo, crLogo) = createRefs()
+                    val (viewFinder, topScrim, topBAr, cancelButton, countDownStateView, bottomBg, captureButton, cameraSwitcher, galleryPreview,
+                        flashModeRow) = createRefs()
                     // The viewfinder sits in a full-screen box and is itself sized to the
                     // selected portrait aspect (3:4 / 9:16 / 1:1), so switching ratios visibly
                     // resizes the preview window. ContentScale.Crop then fills that box with
@@ -208,8 +206,7 @@ fun PhotoCamera(modifier: Modifier = Modifier, cameraViewModel: CameraViewModel 
                     CameraXViewfinder(surfaceRequest = newRequest,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(previewAspect)
+                        .fillMaxSize()
                         .pointerInput(cameraViewModel, coordinateTransformer) {
                             awaitEachGesture {
                                 val firstDown = awaitFirstDown(requireUnconsumed = false)
@@ -254,16 +251,7 @@ fun PhotoCamera(modifier: Modifier = Modifier, cameraViewModel: CameraViewModel 
                                 } while (event.changes.any { it.pressed })
 
                                 if (!isZooming) {
-                                    if (pastTouchSlop && abs(drag.x) > abs(drag.y)) {
-                                        if (drag.x < 0) {
-                                            if (countDownState == CountDownState.Running) {
-                                                countDownState = CountDownState.Cancelled
-                                                onNavigateToVideo()
-                                            } else {
-                                                onNavigateToVideo()
-                                            }
-                                        }
-                                    } else if (!pastTouchSlop && drag.getDistance() < touchSlop) {
+                                    if (!pastTouchSlop && drag.getDistance() < touchSlop) {
                                         val tapCoordinates = firstDown.position
                                         with(coordinateTransformer) {
                                             cameraViewModel.tapToFocus(tapCoordinates.transform())
@@ -282,8 +270,7 @@ fun PhotoCamera(modifier: Modifier = Modifier, cameraViewModel: CameraViewModel 
                     // margins on 1:1 / 16:9.
                     if (showGridLines) {
                         Canvas(modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(previewAspect)
+                            .fillMaxSize()
                         ) {
                             val gridColor = Color.White.copy(alpha = 0.5f)
                             val stroke = 1.dp.toPx()
@@ -426,44 +413,6 @@ fun PhotoCamera(modifier: Modifier = Modifier, cameraViewModel: CameraViewModel 
                         .background(bottomScrimBrush)
                     )
 
-                    Image(
-                        painter = painterResource(R.drawable.proofmoderound),
-                        contentDescription = "TrueSnap 설정",
-                        alpha = 0.5f,
-                        modifier = Modifier
-                            .size(36.dp)
-                            .constrainAs(logo) {
-                                start.linkTo(parent.start, margin = 12.dp)
-                                bottom.linkTo(parent.bottom, margin = 36.dp)
-                            }
-                            .clickable {
-                                context.startActivity(
-                                    Intent().setClassName(
-                                        context, "org.witness.proofmode.SettingsActivity"
-                                    )
-                                )
-                            }
-                    )
-
-                    Image(
-                        painter = painterResource(R.drawable.crlogo),
-                        contentDescription = "Content Credentials signing settings",
-                        alpha = 0.5f,
-                        modifier = Modifier
-                            .size(36.dp)
-                            .constrainAs(crLogo) {
-                                end.linkTo(parent.end, margin = 12.dp)
-                                bottom.linkTo(parent.bottom, margin = 36.dp)
-                            }
-                            .clickable {
-                                context.startActivity(
-                                    Intent().setClassName(
-                                        context, "org.witness.proofmode.SigningSettingsActivity"
-                                    )
-                                )
-                            }
-                    )
-
                     AnimatedVisibility(modifier = Modifier.constrainAs(captureButton) {
                         top.linkTo(bottomBg.top)
                         bottom.linkTo(bottomBg.bottom)
@@ -557,23 +506,6 @@ fun PhotoCamera(modifier: Modifier = Modifier, cameraViewModel: CameraViewModel 
                         }
                     }
 
-                    AnimatedVisibility(
-                        visible = countDownState == CountDownState.Idle || countDownState == CountDownState.Completed,
-                        modifier = Modifier.constrainAs(cameraText) {
-                            start.linkTo(parent.start)
-                            end.linkTo(parent.end)
-                            top.linkTo(captureButton.bottom, margin = 8.dp)
-                        }
-                    ) {
-                        CameraModeToggle(
-                            selectedMode = CameraModeSelection.PHOTO,
-                            onModeSelected = { mode ->
-                                if (mode == CameraModeSelection.VIDEO) {
-                                    onNavigateToVideo()
-                                }
-                            }
-                        )
-                    }
 
                     CountDownTimerUI(
                         modifier = Modifier.constrainAs(countDownStateView){

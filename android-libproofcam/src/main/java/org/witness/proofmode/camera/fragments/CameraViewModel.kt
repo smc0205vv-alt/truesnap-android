@@ -181,7 +181,9 @@ class CameraViewModel(private val activity: CameraActivity, private val app: App
                 .collect{ media->
                     _thumbPreviewUri.value = media.firstOrNull()
                     _mediaFiles.value = media
-                    _lastCapturedMedia.value = media.firstOrNull()
+                    // _lastCapturedMedia is intentionally NOT updated here.
+                    // It must only be set when a new photo/video is actually taken
+                    // so that session expiry is measured from capture time, not app open time.
                 }
         }
     }
@@ -615,39 +617,35 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                 return@launch
             }
 
-            // 1. Compress to JPEG bytes (single pass — reused for hash + disk write)
+            // 1. Compress to JPEG bytes (quality=95, reused for disk write)
             val imageBytes = java.io.ByteArrayOutputStream().also { baos ->
                 bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 95, baos)
             }.toByteArray()
 
             val service = CertificationService()
 
-            // 2. SHA-256 — cryptographic integrity fingerprint
-            val sha256 = service.calculateSha256(imageBytes)
-
-            // 3. pHash — DCT perceptual hash for visual-similarity comparison
-            val pHash = service.calculatePHash(imageBytes, app.cacheDir)
-
-            // 4. Unique auth ID
+            // 2. Unique auth ID
             val authId = service.generateAuthId()
 
-            // 5. Lofi thumbnail — 8×8 downscale of the edited bitmap, non-reversible
+            // 3. Lofi thumbnail — 8×8 downscale of the edited bitmap, non-reversible
             val lofiThumbnail = service.generateLofiThumbnail(bitmap)
 
-            Timber.d("Certification: authId=%s sha256=%s pHash=%s lofi=%s",
-                authId, sha256, pHash, if (lofiThumbnail != null) "ok" else "null")
+            Timber.d("Certification: authId=%s lofi=%s (hashes deferred to watermark step)",
+                authId, if (lofiThumbnail != null) "ok" else "null")
 
-            // 6. Overwrite the capture file with the edited JPEG
+            // 4. Overwrite the capture file with the edited JPEG
             try {
                 FileOutputStream(uri.toFile()).use { os -> os.write(imageBytes) }
             } catch (e: Exception) {
                 Timber.e(e, "Failed to save edited bitmap to %s", uri)
             }
 
+            // sha256Hash/pHash are intentionally empty here —
+            // they are computed from the watermarked JPEG in generateWatermark().
             _certificationState.value = CertificationState.Done(
                 authId              = authId,
-                sha256Hash          = sha256,
-                pHash               = pHash,
+                sha256Hash          = "",
+                pHash               = null,
                 captureTimestampMs  = captureTimestampMs,
                 lofiThumbnailBase64 = lofiThumbnail
             )
@@ -685,15 +683,38 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                 val watermarked = WatermarkComposer.compose(photo, authId)
                 photo.recycle()
 
+                // Compress watermarked bitmap to JPEG bytes at fixed quality=95.
+                // These bytes are the canonical final image — use them for both
+                // file storage and hash computation so the registered hashes match
+                // exactly what the user shares/saves.
+                val wmBytes = java.io.ByteArrayOutputStream().also { baos ->
+                    watermarked.compress(android.graphics.Bitmap.CompressFormat.JPEG, 95, baos)
+                }.toByteArray()
+
                 val tempFile = java.io.File(app.cacheDir, "wm_share_${authId}.jpg")
-                FileOutputStream(tempFile).use {
-                    watermarked.compress(android.graphics.Bitmap.CompressFormat.JPEG, 95, it)
-                }
+                tempFile.writeBytes(wmBytes)
+
                 val shareUri = androidx.core.content.FileProvider.getUriForFile(
                     app,
                     "${app.packageName}.provider",
                     tempFile
                 )
+
+                // Compute hashes from the final watermarked JPEG bytes.
+                val service = CertificationService()
+                val sha256 = service.calculateSha256(wmBytes)
+                val pHash  = service.calculatePHash(wmBytes)
+                Timber.d("Watermark hashes: sha256=%s pHash=%s", sha256, pHash)
+
+                // Update certificationState with the watermark-based hashes.
+                val currentDone = _certificationState.value as? CertificationState.Done
+                if (currentDone != null) {
+                    _certificationState.value = currentDone.copy(
+                        sha256Hash = sha256,
+                        pHash      = pHash
+                    )
+                }
+
                 _watermarkState.value = WatermarkState.Ready(watermarked, shareUri)
             } catch (e: Exception) {
                 Timber.e(e, "Watermark generation failed")

@@ -2,7 +2,6 @@ package org.witness.proofmode.camera.fragments
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -24,7 +23,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -50,6 +48,7 @@ import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -61,16 +60,26 @@ fun NicknameInputScreen(
     onConfirmed: () -> Unit,
     onNavigateBack: () -> Unit
 ) {
-    val certState  by viewModel.certificationState.collectAsStateWithLifecycle()
-    val uploadState by viewModel.uploadState.collectAsStateWithLifecycle()
-    val doneState  = certState as? CertificationState.Done
+    val certState    by viewModel.certificationState.collectAsStateWithLifecycle()
+    val uploadState  by viewModel.uploadState.collectAsStateWithLifecycle()
+    val watermarkState by viewModel.watermarkState.collectAsStateWithLifecycle()
+    val doneState    = certState as? CertificationState.Done
 
     var nickname     by remember { mutableStateOf("") }
     var isConfirmed  by remember { mutableStateOf(false) }
     val recentNames  = remember { viewModel.getRecentNames() }
 
-    val isUploading = uploadState is UploadState.Uploading
-    val isLocked    = isConfirmed || isUploading
+    val isUploading      = uploadState is UploadState.Uploading
+    val isWatermarkReady = watermarkState is WatermarkState.Ready
+    val isLocked         = isConfirmed || isUploading
+
+    // Start watermark generation as soon as this screen opens so hashes are
+    // ready before the user taps 확정.
+    LaunchedEffect(doneState?.authId) {
+        if (doneState != null && watermarkState is WatermarkState.Idle) {
+            viewModel.generateWatermark(doneState.authId)
+        }
+    }
 
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusRequester     = remember { FocusRequester() }
@@ -177,32 +186,6 @@ fun NicknameInputScreen(
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold
                 )
-                HorizontalDivider(
-                    color = Color(0xFF333333),
-                    modifier = Modifier.padding(vertical = 2.dp)
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                    Column {
-                        Text("SHA-256", color = Color(0xFF888888), fontSize = 11.sp)
-                        Text(
-                            doneState.sha256Hash.take(20) + "…",
-                            color = Color(0xFFBBBBBB),
-                            fontSize = 12.sp,
-                            fontFamily = FontFamily.Monospace
-                        )
-                    }
-                    if (doneState.pHash != null) {
-                        Column {
-                            Text("pHash", color = Color(0xFF888888), fontSize = 11.sp)
-                            Text(
-                                doneState.pHash.take(14) + "…",
-                                color = Color(0xFFBBBBBB),
-                                fontSize = 12.sp,
-                                fontFamily = FontFamily.Monospace
-                            )
-                        }
-                    }
-                }
             }
         }
 
@@ -244,14 +227,13 @@ fun NicknameInputScreen(
             value = nickname,
             onValueChange = { if (!isLocked) nickname = it },
             label = { Text("닉네임") },
-            placeholder = { Text("상대방의 닉네임 입력") },
             singleLine = true,
             enabled = !isLocked,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
                 .focusRequester(focusRequester),
-            keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { keyboardController?.hide() }),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor   = AccentGreen,
@@ -267,26 +249,40 @@ fun NicknameInputScreen(
             )
         )
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.weight(1f))
 
-        // Disclaimer box
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .background(Color(0xFF1A1200), RoundedCornerShape(8.dp))
-                .padding(horizontal = 14.dp, vertical = 12.dp)
-        ) {
-            Text(
-                "⚠  이 이름은 당사가 소유를 검증하지 않습니다. " +
-                    "상대방의 실제 닉네임과 같은지 직접 확인하세요.",
-                color = Color(0xFFFFCC44),
-                fontSize = 13.sp,
-                lineHeight = 19.sp
-            )
+        // Watermark generation progress (hashes computed after watermark is ready)
+        if (!isWatermarkReady && !isLocked) {
+            Row(
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(bottom = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(14.dp),
+                    color = Color(0xFF888888),
+                    strokeWidth = 2.dp
+                )
+                Text(
+                    if (watermarkState is WatermarkState.Failed) "워터마크 생성 실패 — 재시도 중"
+                    else "인증 준비 중…",
+                    color = Color(0xFF888888),
+                    fontSize = 12.sp
+                )
+            }
         }
 
-        Spacer(Modifier.weight(1f))
+        // Privacy notice
+        Text(
+            "🔒 TrueSnap은 이미지를 절대 저장하지 않습니다.",
+            color = Color(0xFF888888),
+            fontSize = 12.sp,
+            modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+                .padding(bottom = 8.dp)
+        )
 
         // Confirm / uploading button
         Button(
@@ -309,7 +305,7 @@ fun NicknameInputScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 16.dp),
-            enabled = nickname.isNotBlank() && !isLocked,
+            enabled = nickname.isNotBlank() && !isLocked && isWatermarkReady,
             colors = ButtonDefaults.buttonColors(
                 containerColor          = AccentGreen,
                 contentColor            = Color.Black,

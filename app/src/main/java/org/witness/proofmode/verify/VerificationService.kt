@@ -26,7 +26,7 @@ class VerificationService {
 
     companion object {
         const val LOOKUP_URL  = "https://truesnap-production.up.railway.app/api/v1/certify"
-        const val COMPARE_URL = "https://truesnap-production.up.railway.app/api/v1/compare"
+        const val COMPARE_URL = "https://truesnap-production.up.railway.app/api/compare"
         private const val TIMEOUT_MS = 30_000L
     }
 
@@ -46,7 +46,6 @@ class VerificationService {
      */
     data class CompareResult(
         val classification: String,
-        val sha256Match: Boolean?,
         val pHashHamming: Int?,
         val rawJson: String
     )
@@ -76,42 +75,67 @@ class VerificationService {
             } else if (response.code == 404) {
                 Result.success(LookupResult(false, null, null, null, null, null, body))
             } else {
-                Result.failure(Exception("HTTP ${response.code}"))
+                Result.failure(Exception(httpErrorMessage(response.code)))
             }
         } catch (e: Exception) {
             Timber.e(e, "lookupRegistration failed: %s", authId)
-            Result.failure(e)
+            Result.failure(Exception(friendlyNetworkError(e)))
         }
     }
 
-    /** POST /compare — multipart: auth_id + jpeg image bytes. */
+    /** POST /compare/:authId — multipart: jpeg image bytes. */
     fun compareImage(authId: String, imageBytes: ByteArray): Result<CompareResult> {
         val body = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
-            .addFormDataPart("auth_id", authId)
             .addFormDataPart(
                 "image", "verify.jpg",
                 imageBytes.toRequestBody("image/jpeg".toMediaType())
             )
             .build()
-        val request = Request.Builder().url(COMPARE_URL).post(body).build()
+        val request = Request.Builder().url("$COMPARE_URL/$authId").post(body).build()
         return try {
             val response = client.newCall(request).execute()
             val bodyStr = response.body?.string().orEmpty()
             if (response.isSuccessful) {
                 val j = runCatching { JSONObject(bodyStr) }.getOrNull()
+                val verdict = j?.optString("verdict")?.lowercase() ?: "unknown"
+                val classification = when (verdict) {
+                    "identical"  -> "identical"
+                    "minor_edit" -> "minor_edit"
+                    "suspicious" -> "tampered"
+                    else         -> verdict
+                }
+                val detail = j?.optJSONObject("detail")
                 Result.success(CompareResult(
-                    classification = j?.optString("classification") ?: "unknown",
-                    sha256Match    = if (j?.has("sha256_match") == true) j.optBoolean("sha256_match") else null,
-                    pHashHamming   = if (j?.has("phash_hamming") == true) j.optInt("phash_hamming") else null,
+                    classification = classification,
+                    pHashHamming   = detail?.let { if (it.has("hammingDistance")) it.optInt("hammingDistance") else null },
                     rawJson        = bodyStr
                 ))
             } else {
-                Result.failure(Exception("HTTP ${response.code}"))
+                Result.failure(Exception(httpErrorMessage(response.code)))
             }
         } catch (e: Exception) {
             Timber.e(e, "compareImage failed: %s", authId)
-            Result.failure(e)
+            Result.failure(Exception(friendlyNetworkError(e)))
         }
+    }
+
+    // ── Error message helpers ─────────────────────────────────────────────────
+
+    private fun friendlyNetworkError(e: Throwable): String = when (e) {
+        is java.net.SocketTimeoutException          -> "서버 응답 시간이 초과됐습니다. 잠시 후 다시 시도해주세요."
+        is java.net.ConnectException                -> "서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요."
+        is java.net.UnknownHostException            -> "인터넷 연결을 확인해주세요."
+        is javax.net.ssl.SSLPeerUnverifiedException -> "보안 인증서 검증에 실패했습니다. 앱을 최신 버전으로 업데이트해주세요."
+        is javax.net.ssl.SSLException               -> "보안 연결 오류가 발생했습니다."
+        else                                        -> "네트워크 오류가 발생했습니다."
+    }
+
+    private fun httpErrorMessage(code: Int): String = when {
+        code == 429       -> "요청이 너무 많습니다. 잠시 후 다시 시도해주세요."
+        code == 413       -> "파일이 너무 큽니다."
+        code == 503       -> "서버 점검 중입니다. 잠시 후 다시 시도해주세요."
+        code in 500..599  -> "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+        else              -> "오류가 발생했습니다. 잠시 후 다시 시도해주세요."
     }
 }

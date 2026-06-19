@@ -1,23 +1,22 @@
 package org.witness.proofmode.camera.network
 
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.util.Base64
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import ru.avicorp.phashcalc.pHashCalc
 import timber.log.Timber
+import java.util.concurrent.TimeUnit
 import java.io.ByteArrayOutputStream
-import java.io.File
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
-import java.util.concurrent.TimeUnit
 
 /**
  * Handles SHA-256 hashing, perceptual hashing (pHash), auth-ID generation,
@@ -54,13 +53,16 @@ class CertificationService {
         /** Metadata-only endpoint — receives JSON, no image file. */
         const val METADATA_API_URL = "https://truesnap-production.up.railway.app/api/v1/certify"
 
+        /** Shared secret injected at compile time from local.properties via BuildConfig. */
+        private val API_KEY: String get() = BuildConfig.TRUESNAP_API_KEY
+
         private val AUTH_ID_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
         private const val AUTH_ID_LENGTH = 6
         private const val CONNECT_TIMEOUT_MS = 30_000L
         private const val READ_TIMEOUT_MS   = 60_000L
 
-        /** Temp file prefix used during pHash calculation. */
-        private const val PHASH_TEMP_PREFIX = "truesnap_phash_"
+        private const val PHASH_SIZE = 8
+        private const val PHASH_IMG_SIZE = PHASH_SIZE * 4  // 32
     }
 
     // ---------------------------------------------------------------------------
@@ -160,35 +162,80 @@ class CertificationService {
     }
 
     /**
-     * Calculates a DCT-based perceptual hash using [pHashCalc].
+     * Computes a DCT perceptual hash compatible with Python imagehash.phash().
      *
-     * Steps:
-     *   1. Write [imageBytes] to a temporary JPEG file in [cacheDir]
-     *   2. Load the file with [pHashCalc] (both slots point to the same file)
-     *   3. Extract [pHashCalc.getHashOne] as the perceptual hash string
-     *   4. Delete the temp file
+     * Algorithm (matches imagehash defaults: hash_size=8, highfreq_factor=4):
+     *   1. Decode JPEG → grayscale 32×32 (ITU-R 601-2 luma)
+     *   2. 2D DCT Type II (unnormalized, same as scipy.fftpack.dct default)
+     *   3. Top-left 8×8 low-frequency block
+     *   4. Median threshold → 64-bit binary hash
+     *   5. Return as 16-char hex string (same format as imagehash str())
      *
-     * @return Perceptual hash string, or null if the library fails to process the image.
+     * @return 16-char hex string, or null on decode/compute error.
      */
-    fun calculatePHash(imageBytes: ByteArray, cacheDir: File): String? {
-        val tempFile = File(cacheDir, "$PHASH_TEMP_PREFIX${System.currentTimeMillis()}.jpg")
+    fun calculatePHash(imageBytes: ByteArray): String? {
         return try {
-            tempFile.writeBytes(imageBytes)
-            val calc = pHashCalc()
-            val loaded = calc.loadSourceFile(tempFile.absolutePath, tempFile.absolutePath)
-            if (loaded && calc.checkCondition()) {
-                calc.getHashOne().toString().also { hash ->
-                    Timber.d("pHash calculated: %s", hash)
+            val bmp = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size) ?: return null
+            val n = PHASH_IMG_SIZE  // 32
+            val scaled = Bitmap.createScaledBitmap(bmp, n, n, true)
+            bmp.recycle()
+
+            // Grayscale pixel values as doubles
+            val pixels = DoubleArray(n * n)
+            for (y in 0 until n) {
+                for (x in 0 until n) {
+                    val c = scaled.getPixel(x, y)
+                    val r = (c shr 16) and 0xFF
+                    val g = (c shr 8) and 0xFF
+                    val b = c and 0xFF
+                    pixels[y * n + x] = 0.299 * r + 0.587 * g + 0.114 * b
                 }
-            } else {
-                Timber.w("pHashCalc: loadSourceFile=%b checkCondition=%b", loaded, calc.checkCondition())
-                null
             }
+            scaled.recycle()
+
+            val dct = dct2d(pixels, n)
+
+            // Extract top-left PHASH_SIZE × PHASH_SIZE
+            val h = PHASH_SIZE
+            val lowFreq = DoubleArray(h * h) { dct[(it / h) * n + (it % h)] }
+
+            // Median threshold
+            val sorted = lowFreq.copyOf().also { it.sort() }
+            val med = (sorted[h * h / 2 - 1] + sorted[h * h / 2]) / 2.0
+
+            // Build 64-bit value MSB-first (row-major), then hex
+            var bits = 0L
+            for (v in lowFreq) {
+                bits = bits shl 1
+                if (v > med) bits = bits or 1L
+            }
+            "%016x".format(bits).also { Timber.d("pHash calculated: %s", it) }
         } catch (e: Exception) {
             Timber.e(e, "pHash calculation failed")
             null
-        } finally {
-            tempFile.delete()
+        }
+    }
+
+    private fun dct2d(m: DoubleArray, n: Int): DoubleArray {
+        val tmp = DoubleArray(n * n)
+        for (row in 0 until n) {
+            val r = dct1d(DoubleArray(n) { m[row * n + it] })
+            for (col in 0 until n) tmp[row * n + col] = r[col]
+        }
+        val out = DoubleArray(n * n)
+        for (col in 0 until n) {
+            val c = dct1d(DoubleArray(n) { tmp[it * n + col] })
+            for (row in 0 until n) out[row * n + col] = c[row]
+        }
+        return out
+    }
+
+    private fun dct1d(x: DoubleArray): DoubleArray {
+        val n = x.size
+        return DoubleArray(n) { k ->
+            var s = 0.0
+            for (i in 0 until n) s += x[i] * Math.cos(Math.PI * k * (2 * i + 1) / (2.0 * n))
+            2.0 * s
         }
     }
 
@@ -236,6 +283,7 @@ class CertificationService {
 
         val httpRequest = Request.Builder()
             .url(METADATA_API_URL)
+            .addHeader("Authorization", "Bearer $API_KEY")
             .post(jsonBody.toRequestBody("application/json".toMediaType()))
             .build()
 
@@ -246,14 +294,30 @@ class CertificationService {
                 Timber.d("Metadata upload success: authId=%s", request.authId)
                 MetadataUploadResult.Success(request.authId)
             } else {
-                val msg = "HTTP ${response.code}: $body"
-                Timber.w("Metadata upload failed: %s", msg)
-                MetadataUploadResult.Failure(request.authId, msg)
+                Timber.w("Metadata upload failed: HTTP %d: %s", response.code, body)
+                MetadataUploadResult.Failure(request.authId, uploadHttpErrorMessage(response.code))
             }
         } catch (e: Exception) {
             Timber.e(e, "Metadata upload exception")
-            MetadataUploadResult.Failure(request.authId, e.message ?: "Network error")
+            MetadataUploadResult.Failure(request.authId, uploadNetworkError(e))
         }
+    }
+
+    private fun uploadNetworkError(e: Throwable): String = when (e) {
+        is java.net.SocketTimeoutException          -> "서버 응답 시간이 초과됐습니다. 재시도해주세요."
+        is java.net.ConnectException                -> "서버에 연결할 수 없습니다. 인터넷 연결을 확인해주세요."
+        is java.net.UnknownHostException            -> "인터넷 연결을 확인해주세요."
+        is javax.net.ssl.SSLPeerUnverifiedException -> "보안 인증서 검증에 실패했습니다. 앱을 최신 버전으로 업데이트해주세요."
+        is javax.net.ssl.SSLException               -> "보안 연결 오류가 발생했습니다."
+        else                                        -> "네트워크 오류가 발생했습니다."
+    }
+
+    private fun uploadHttpErrorMessage(code: Int): String = when {
+        code == 401       -> "인증 오류가 발생했습니다. 앱을 최신 버전으로 업데이트해주세요."
+        code == 409       -> "이미 등록된 인증 ID입니다."
+        code == 429       -> "요청이 너무 많습니다. 잠시 후 다시 시도해주세요."
+        code in 500..599  -> "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+        else              -> "전송에 실패했습니다. 잠시 후 다시 시도해주세요."
     }
 
     // ---------------------------------------------------------------------------
