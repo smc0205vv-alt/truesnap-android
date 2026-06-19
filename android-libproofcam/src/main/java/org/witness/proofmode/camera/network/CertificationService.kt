@@ -64,6 +64,10 @@ class CertificationService {
 
         private const val PHASH_SIZE = 8
         private const val PHASH_IMG_SIZE = PHASH_SIZE * 4  // 32
+
+        /** Fixed block grid for crop-region hashes. Must match server hash_image.py. */
+        const val BLOCK_GRID_COLS = 8
+        const val BLOCK_GRID_ROWS = 8
     }
 
     // ---------------------------------------------------------------------------
@@ -116,7 +120,8 @@ class CertificationService {
         val pHash: String?,
         val captureTimestampMs: Long,
         val nickname: String,
-        val lofiThumbnailBase64: String? = null
+        val lofiThumbnailBase64: String? = null,
+        val cropHashes: List<String>? = null
     )
 
     sealed class MetadataUploadResult {
@@ -274,6 +279,9 @@ class CertificationService {
             put("capture_time_utc",     captureTimeUtc)
             put("nickname",             request.nickname)
             if (request.lofiThumbnailBase64 != null) put("lofi_thumbnail", request.lofiThumbnailBase64)
+            if (!request.cropHashes.isNullOrEmpty()) {
+                put("crop_hashes", org.json.JSONArray(request.cropHashes))
+            }
             toString()
         }
 
@@ -301,6 +309,70 @@ class CertificationService {
         } catch (e: Exception) {
             Timber.e(e, "Metadata upload exception")
             MetadataUploadResult.Failure(request.authId, uploadNetworkError(e))
+        }
+    }
+
+    /**
+     * Divides [imageBytes] into a [BLOCK_GRID_COLS]×[BLOCK_GRID_ROWS] grid and computes
+     * pHash for each block. Uses the same DCT algorithm and bilinear resize as [calculatePHash],
+     * mirrored in Python (hash_image.py) so stored hashes are directly comparable to
+     * hashes computed server-side during verification.
+     *
+     * @return List of [BLOCK_GRID_COLS * BLOCK_GRID_ROWS] 16-char hex strings, or null on error.
+     */
+    fun calculateBlockHashes(imageBytes: ByteArray): List<String>? {
+        return try {
+            val bmp = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size) ?: return null
+            val W = bmp.width
+            val H = bmp.height
+            val blockW = W / BLOCK_GRID_COLS
+            val blockH = H / BLOCK_GRID_ROWS
+            if (blockW == 0 || blockH == 0) {
+                bmp.recycle()
+                return null
+            }
+
+            val n = PHASH_IMG_SIZE  // 32
+            val h = PHASH_SIZE      // 8
+            val hashes = ArrayList<String>(BLOCK_GRID_COLS * BLOCK_GRID_ROWS)
+
+            for (row in 0 until BLOCK_GRID_ROWS) {
+                for (col in 0 until BLOCK_GRID_COLS) {
+                    val block = Bitmap.createBitmap(bmp, col * blockW, row * blockH, blockW, blockH)
+                    val scaled = Bitmap.createScaledBitmap(block, n, n, true) // bilinear
+                    block.recycle()
+
+                    val pixels = DoubleArray(n * n)
+                    for (py in 0 until n) {
+                        for (px in 0 until n) {
+                            val c = scaled.getPixel(px, py)
+                            pixels[py * n + px] =
+                                0.299 * ((c shr 16) and 0xFF) +
+                                0.587 * ((c shr 8)  and 0xFF) +
+                                0.114 * (c and 0xFF)
+                        }
+                    }
+                    scaled.recycle()
+
+                    val dct = dct2d(pixels, n)
+                    val lowFreq = DoubleArray(h * h) { dct[(it / h) * n + (it % h)] }
+                    val sorted = lowFreq.copyOf().also { it.sort() }
+                    val med = (sorted[h * h / 2 - 1] + sorted[h * h / 2]) / 2.0
+
+                    var bits = 0L
+                    for (v in lowFreq) {
+                        bits = bits shl 1
+                        if (v > med) bits = bits or 1L
+                    }
+                    hashes.add("%016x".format(bits))
+                }
+            }
+
+            bmp.recycle()
+            hashes
+        } catch (e: Exception) {
+            Timber.e(e, "Block hash calculation failed")
+            null
         }
     }
 

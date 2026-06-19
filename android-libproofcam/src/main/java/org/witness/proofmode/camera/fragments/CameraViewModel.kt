@@ -99,7 +99,8 @@ sealed class CertificationState {
         val sha256Hash: String,
         val pHash: String?,
         val captureTimestampMs: Long,
-        val lofiThumbnailBase64: String? = null
+        val lofiThumbnailBase64: String? = null,
+        val cropHashes: List<String>? = null
     ) : CertificationState()
     /** The capture file is older than [SESSION_MAX_AGE_MS]; redirect user to camera. */
     object SessionExpired : CertificationState()
@@ -145,6 +146,7 @@ class CameraViewModel(private val activity: CameraActivity, private val app: App
 
     private val _watermarkState = MutableStateFlow<WatermarkState>(WatermarkState.Idle)
     val watermarkState: StateFlow<WatermarkState> = _watermarkState
+
     // Used for rounded thumbnail to immediately show when an image or video is captured
     var _thumbPreviewUri = MutableStateFlow<Media?>(null)
     val thumbPreviewUri: StateFlow<Media?> = _thumbPreviewUri
@@ -702,16 +704,19 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
 
                 // Compute hashes from the final watermarked JPEG bytes.
                 val service = CertificationService()
-                val sha256 = service.calculateSha256(wmBytes)
-                val pHash  = service.calculatePHash(wmBytes)
-                Timber.d("Watermark hashes: sha256=%s pHash=%s", sha256, pHash)
+                val sha256      = service.calculateSha256(wmBytes)
+                val pHash       = service.calculatePHash(wmBytes)
+                val cropHashes  = service.calculateBlockHashes(wmBytes)
+                Timber.d("Watermark hashes: sha256=%s pHash=%s blocks=%d",
+                    sha256, pHash, cropHashes?.size ?: 0)
 
                 // Update certificationState with the watermark-based hashes.
                 val currentDone = _certificationState.value as? CertificationState.Done
                 if (currentDone != null) {
                     _certificationState.value = currentDone.copy(
                         sha256Hash = sha256,
-                        pHash      = pHash
+                        pHash      = pHash,
+                        cropHashes = cropHashes
                     )
                 }
 
@@ -734,7 +739,8 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
         pHash: String?,
         captureTimestampMs: Long,
         nickname: String,
-        lofiThumbnailBase64: String? = null
+        lofiThumbnailBase64: String? = null,
+        cropHashes: List<String>? = null
     ) {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             _uploadState.value = UploadState.Uploading
@@ -744,7 +750,8 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                 pHash               = pHash,
                 captureTimestampMs  = captureTimestampMs,
                 nickname            = nickname,
-                lofiThumbnailBase64 = lofiThumbnailBase64
+                lofiThumbnailBase64 = lofiThumbnailBase64,
+                cropHashes          = cropHashes
             )
             _uploadState.value = when (val result = CertificationService().uploadMetadata(request)) {
                 is CertificationService.MetadataUploadResult.Success ->

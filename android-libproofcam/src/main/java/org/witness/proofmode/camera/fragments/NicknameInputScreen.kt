@@ -126,7 +126,8 @@ fun NicknameInputScreen(
                             pHash               = it.pHash,
                             captureTimestampMs  = it.captureTimestampMs,
                             nickname            = nickname.trim(),
-                            lofiThumbnailBase64 = it.lofiThumbnailBase64
+                            lofiThumbnailBase64 = it.lofiThumbnailBase64,
+                            cropHashes          = it.cropHashes
                         )
                     }
                 }) {
@@ -298,7 +299,8 @@ fun NicknameInputScreen(
                         pHash               = it.pHash,
                         captureTimestampMs  = it.captureTimestampMs,
                         nickname            = nickname.trim(),
-                        lofiThumbnailBase64 = it.lofiThumbnailBase64
+                        lofiThumbnailBase64 = it.lofiThumbnailBase64,
+                        cropHashes          = it.cropHashes
                     )
                 }
             },
