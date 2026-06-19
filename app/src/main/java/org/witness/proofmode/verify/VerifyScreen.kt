@@ -407,11 +407,11 @@ private fun LookupResultContent(r: VerificationService.LookupResult) {
 @Composable
 private fun CompareResultContent(r: VerificationService.CompareResult) {
     val (icon, color, label) = when (r.classification) {
-        "identical"            -> Triple("✓", AccentGreen,  "원본과 동일")
-        "minor_edit"           -> Triple("✓", AccentGreen,  "단순 보정됨")
-        "tampered", "suspicious" -> Triple("✗", ErrorRed,   "구조 변경 의심")
-        "unknown"              -> Triple("?", TextSecondary, "pHash 미등록 — 비교 불가")
-        else                   -> Triple("?", TextSecondary, "결과 알 수 없음")
+        "identical"              -> Triple("✓", AccentGreen,  "원본과 일치")
+        "minor_edit"             -> Triple("✓", AccentGreen,  "단순 보정됨")
+        "tampered", "suspicious" -> Triple("✗", ErrorRed,     "구조 변경 의심")
+        "unknown"                -> Triple("?", TextSecondary, "pHash 미등록 — 비교 불가")
+        else                     -> Triple("?", TextSecondary, "결과 알 수 없음")
     }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(icon, color = color, fontSize = 20.sp, fontWeight = FontWeight.Bold)

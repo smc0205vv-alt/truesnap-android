@@ -107,7 +107,7 @@ private fun HomeScreen(
         Spacer(Modifier.height(10.dp))
 
         Text(
-            "AI도, 도용도, 몰래 수정도\n숨길 수 없습니다",
+            "AI도, 도용도, 수정도\n숨길 수 없습니다",
             color = TextSub,
             fontSize = 14.sp,
             fontWeight = FontWeight.Normal,
