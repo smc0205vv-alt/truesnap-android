@@ -5,15 +5,19 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -25,6 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -67,7 +72,7 @@ class HomeActivity : ComponentActivity() {
     }
 }
 
-private val AccentGreen = Color(0xFF4CAF82)
+private val AccentTeal = Color(0xFF3CCFC2)
 private val TextSub = Color(0xFFAAAAAA)
 
 @Composable
@@ -86,13 +91,21 @@ private fun HomeScreen(
     ) {
         Spacer(Modifier.weight(1.4f))
 
-        Text(
-            "TrueSnap",
-            color = AccentGreen,
-            fontSize = 40.sp,
-            fontWeight = FontWeight.ExtraBold,
-            letterSpacing = 1.sp
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Image(
+                painter = painterResource(R.drawable.ic_truesnap_logo),
+                contentDescription = null,
+                modifier = Modifier.size(44.dp)
+            )
+            Spacer(Modifier.width(12.dp))
+            Text(
+                "TrueSnap",
+                color = AccentTeal,
+                fontSize = 40.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 1.sp
+            )
+        }
 
         Spacer(Modifier.height(24.dp))
 
@@ -124,7 +137,7 @@ private fun HomeScreen(
                 .height(54.dp),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = AccentGreen,
+                containerColor = AccentTeal,
                 contentColor = Color.Black
             )
         ) {
@@ -144,9 +157,9 @@ private fun HomeScreen(
                 .height(54.dp),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = AccentGreen
+                contentColor = AccentTeal
             ),
-            border = androidx.compose.foundation.BorderStroke(1.5.dp, AccentGreen)
+            border = androidx.compose.foundation.BorderStroke(1.5.dp, AccentTeal)
         ) {
             Text(
                 "인증 확인하기",

@@ -1,0 +1,45 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="120"
+    android:viewportHeight="120">
+
+    <!-- Outer ring -->
+    <path
+        android:pathData="M 10,51 A 41,41 0 1 0 92,51 A 41,41 0 1 0 10,51 Z"
+        android:fillColor="#00000000"
+        android:strokeColor="#3ccfc2"
+        android:strokeWidth="3.5"/>
+
+    <!-- Inner ring (dark) -->
+    <path
+        android:pathData="M 28,51 A 23,23 0 1 0 74,51 A 23,23 0 1 0 28,51 Z"
+        android:fillColor="#00000000"
+        android:strokeColor="#2b3744"
+        android:strokeWidth="2.5"/>
+
+    <!-- Center dot -->
+    <path
+        android:pathData="M 43,51 A 8,8 0 1 0 59,51 A 8,8 0 1 0 43,51 Z"
+        android:fillColor="#1a3b3a"/>
+
+    <!-- Badge background -->
+    <path
+        android:pathData="M 70,90 A 20,20 0 1 0 110,90 A 20,20 0 1 0 70,90 Z"
+        android:fillColor="#10141b"/>
+
+    <!-- Badge circle (teal) -->
+    <path
+        android:pathData="M 74.5,90 A 15.5,15.5 0 1 0 105.5,90 A 15.5,15.5 0 1 0 74.5,90 Z"
+        android:fillColor="#3ccfc2"/>
+
+    <!-- Checkmark -->
+    <path
+        android:pathData="M 82,90.5 L 87.5,96 L 98.5,84"
+        android:fillColor="#00000000"
+        android:strokeColor="#0c1117"
+        android:strokeWidth="3.4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"/>
+
+</vector>
