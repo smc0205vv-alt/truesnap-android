@@ -1,11 +1,8 @@
 package org.witness.proofmode.verify
 
-import android.graphics.BitmapFactory
-import android.util.Base64
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,7 +25,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -36,13 +32,10 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.FilterQuality
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -236,14 +229,6 @@ fun VerifyScreen(
                         }
                     }
                 )
-                // ── Section 5.5 — composition thumbnail ───────────────────────
-                val thumbnail = state.lookupResult
-                    ?.takeIf { it.registered }
-                    ?.lofiThumbnailBase64
-                if (thumbnail != null) {
-                    Spacer(Modifier.height(12.dp))
-                    CompositionThumbnailCard(lofiBase64 = thumbnail)
-                }
                 Spacer(Modifier.height(12.dp))
                 VerifyStageCard(
                     stageNumber = "2단계",
@@ -265,68 +250,6 @@ fun VerifyScreen(
 }
 
 // ── Sub-composables ───────────────────────────────────────────────────────────
-
-@Composable
-private fun CompositionThumbnailCard(lofiBase64: String) {
-    val imageBitmap = remember(lofiBase64) {
-        runCatching {
-            val bytes = Base64.decode(lofiBase64, Base64.DEFAULT)
-            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
-        }.getOrNull()
-    } ?: return
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .background(CardBg, RoundedCornerShape(10.dp))
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .background(Color(0xFF2A2A2A), RoundedCornerShape(4.dp))
-                    .padding(horizontal = 8.dp, vertical = 2.dp)
-            ) {
-                Text("구도", color = AccentGreen, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-            }
-            Text("구도 미리보기", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-        }
-        HorizontalDivider(color = Color(0xFF2A2A2A))
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            verticalAlignment = Alignment.Top
-        ) {
-            Image(
-                bitmap = imageBitmap,
-                contentDescription = "구도 썸네일",
-                filterQuality = FilterQuality.None,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(80.dp)
-                    .clip(RoundedCornerShape(4.dp))
-            )
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    "이 인증서가 발급된 사진의 대략적인 구도입니다. 지금 보고 계신 사진과 구도가 비슷한가요?",
-                    color = TextPrimary,
-                    fontSize = 13.sp,
-                    lineHeight = 19.sp
-                )
-                Text(
-                    "정확한 위변조 여부는 아래에서 사진을 업로드해야 확인할 수 있습니다.",
-                    color = TextSecondary,
-                    fontSize = 12.sp,
-                    lineHeight = 17.sp
-                )
-            }
-        }
-    }
-}
 
 @Composable
 private fun GuideStep(step: String, text: String) {
