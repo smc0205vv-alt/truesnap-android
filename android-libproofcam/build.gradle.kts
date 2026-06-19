@@ -96,4 +96,7 @@ dependencies {
     // QR code generation for certification result watermark
     implementation(libs.zxing.core)
 
+    // EXIF orientation correction when loading captured JPEGs
+    implementation(libs.androidx.exifinterface)
+
 }

@@ -5,8 +5,10 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.net.Uri
+import androidx.exifinterface.media.ExifInterface
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -109,13 +111,33 @@ fun PhotoEditScreen(
     var sourceBitmap by remember(uri) { mutableStateOf<Bitmap?>(null) }
     var isLoading    by remember(uri) { mutableStateOf(true) }
 
-    // Load bitmap on IO thread
+    // Load bitmap on IO thread, applying EXIF orientation so portrait shots display upright.
+    // CameraX writes rotation into EXIF metadata rather than rotating pixels; BitmapFactory
+    // ignores that tag, so we must apply it manually.
     LaunchedEffect(uri) {
         if (uri == null) return@LaunchedEffect
         isLoading = true
         sourceBitmap = withContext(Dispatchers.IO) {
             runCatching {
-                context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
+                val bitmap = context.contentResolver.openInputStream(uri)
+                    ?.use { BitmapFactory.decodeStream(it) }
+                    ?: return@runCatching null
+                val orientation = context.contentResolver.openInputStream(uri)?.use {
+                    ExifInterface(it).getAttributeInt(
+                        ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL
+                    )
+                } ?: ExifInterface.ORIENTATION_NORMAL
+                val matrix = Matrix()
+                when (orientation) {
+                    ExifInterface.ORIENTATION_ROTATE_90  -> matrix.postRotate(90f)
+                    ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
+                    ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
+                    ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.postScale(-1f, 1f)
+                    ExifInterface.ORIENTATION_FLIP_VERTICAL   -> matrix.postScale(1f, -1f)
+                    else -> return@runCatching bitmap
+                }
+                Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+                    .also { bitmap.recycle() }
             }.getOrElse { e ->
                 Timber.e(e, "Failed to decode bitmap for edit screen")
                 null
