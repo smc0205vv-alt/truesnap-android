@@ -26,6 +26,8 @@ data class VerifyUiState(
     val qrDecoding: Boolean                     = false,
     val authId: String?                         = null,
     val qrError: String?                        = null,
+    // Manual auth ID input (shown when QR decode fails)
+    val manualAuthIdInput: String               = "",
     // Stage 1 — registration lookup
     val lookupLoading: Boolean                  = false,
     val lookupResult: VerificationService.LookupResult? = null,
@@ -63,6 +65,35 @@ class VerifyViewModel : ViewModel() {
         _state.value = VerifyUiState(imageUri = uri, qrDecoding = true)
         viewModelScope.launch(Dispatchers.IO) {
             processImage(context, uri)
+        }
+    }
+
+    fun onManualAuthIdChanged(text: String) {
+        _state.update { it.copy(manualAuthIdInput = text) }
+    }
+
+    fun onManualAuthIdSubmit(context: Context) {
+        val authId = _state.value.manualAuthIdInput.trim().uppercase()
+        val uri = _state.value.imageUri ?: return
+        if (authId.isBlank()) return
+
+        _state.update { it.copy(
+            authId        = authId,
+            lookupLoading = true,
+            compareLoading = true
+        )}
+
+        viewModelScope.launch(Dispatchers.IO) {
+            val imageBytes: ByteArray? = try {
+                context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            } catch (e: Exception) {
+                Timber.e(e, "Failed to read image bytes for manual compare")
+                null
+            }
+            coroutineScope {
+                launch { runLookup(authId) }
+                launch { runCompare(authId, imageBytes) }
+            }
         }
     }
 
