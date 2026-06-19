@@ -191,7 +191,7 @@ fun CertificationShareScreen(
                     disabledContentColor   = Color(0xFF555555)
                 )
             ) {
-                Text("공유하기 (당근마켓 등)", fontWeight = FontWeight.Bold)
+                Text("공유하기", fontWeight = FontWeight.Bold)
             }
 
             // Save to gallery

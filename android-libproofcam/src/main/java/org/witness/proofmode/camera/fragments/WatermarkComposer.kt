@@ -15,48 +15,46 @@ object WatermarkComposer {
     const val VERIFY_BASE_URL = "https://YOUR_SERVER_URL.com/verify"
 
     /**
-     * Composites [photo] with a branded certification strip at the bottom.
-     *
      * Strip layout (left → right):
-     *   ┌──────────────────────────────────┬──────────┐
-     *   │ TrueSnap                         │          │
-     *   │ TS-XXXXXX  ← large mono text     │ QR code  │
-     *   └──────────────────────────────────┴──────────┘
+     *   ┌──────────────────────────────────────────────────┬──────────┐
+     *   │ TrueSnap  (green, bold)                          │          │
+     *   │ TS-XXXXXX  (white, large monospace)              │  QR code │
+     *   │ TrueSnap 진위확인 가능 사진                      │          │
+     *   │ 앱·웹(truesnap.app)에서 코드로 직접 확인하세요   │          │
+     *   └──────────────────────────────────────────────────┴──────────┘
      *
-     * Auth ID text is sized to be at least as tall as the QR code so it
-     * can be read and typed by hand — the primary verification path.
+     * Strip height ≈ 13 % of total output image (= 15 % of original photo height).
+     * Auth ID and guidance lines are sized so a person can read and type them by hand —
+     * neither is made smaller than the QR's visual footprint permits.
      */
     fun compose(photo: Bitmap, authId: String): Bitmap {
         val W = photo.width
         val H = photo.height
 
-        // Strip height: 25 % of image width, clamped so it stays reasonable
-        val stripH = (W * 0.25f).toInt().coerceIn(220, 480)
-        val pad    = (stripH * 0.07f).toInt()
+        // Strip ≈ 13 % of total image height (stripH / (H + stripH) ≈ 0.13)
+        val stripH = (H * 0.15f).toInt().coerceIn(180, 600)
+        val pad    = (stripH * 0.07f).toInt().coerceAtLeast(8)
 
-        // QR code (square, fits inside the strip with padding on all sides)
-        val qrSize = stripH - 2 * pad
-        val qrBmp  = generateQrBitmap("$VERIFY_BASE_URL/$authId", qrSize)
+        // QR code: square, fills the strip minus top/bottom padding
+        val qrSize  = stripH - 2 * pad
+        val qrBmp   = generateQrBitmap("$VERIFY_BASE_URL/$authId", qrSize)
+        val qrBgPad = maxOf(4, qrSize / 28)
 
-        // Result canvas
         val result = Bitmap.createBitmap(W, H + stripH, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(result)
 
-        // ── Photo ──────────────────────────────────────────────────────────
+        // ── Photo ─────────────────────────────────────────────────────────────
         canvas.drawBitmap(photo, 0f, 0f, null)
 
-        // ── Strip background ───────────────────────────────────────────────
+        // ── Strip background ──────────────────────────────────────────────────
         canvas.drawRect(
             0f, H.toFloat(), W.toFloat(), (H + stripH).toFloat(),
             Paint().apply { color = Color.parseColor("#0D0D0D") }
         )
 
-        // ── QR code (right side) ────────────────────────────────────────────
-        val qrL = W - pad - qrSize
+        // ── QR code (right side) ──────────────────────────────────────────────
+        val qrL = W - pad - qrBgPad - qrSize
         val qrT = H + pad
-
-        // White backing so dark-module QR is always scannable
-        val qrBgPad = maxOf(4, qrSize / 28)
         canvas.drawRect(
             (qrL - qrBgPad).toFloat(), (qrT - qrBgPad).toFloat(),
             (qrL + qrSize + qrBgPad).toFloat(), (qrT + qrSize + qrBgPad).toFloat(),
@@ -64,36 +62,66 @@ object WatermarkComposer {
         )
         canvas.drawBitmap(qrBmp, qrL.toFloat(), qrT.toFloat(), null)
 
-        // ── Left content area ───────────────────────────────────────────────
+        // ── Left content (logo + authId + two guide lines) ────────────────────
         val contentL = pad.toFloat()
-        val contentW = (qrL - 2 * pad).toFloat()   // gap on both sides of QR
+        val contentR = (qrL - qrBgPad - pad).toFloat()
+        val contentW = contentR - contentL
 
-        // "TrueSnap" label (small, AccentGreen)
-        val labelSize = stripH * 0.15f
-        val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#4CAF82")
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            textSize = labelSize
-        }
-        // Baseline: top-of-strip + padding + text ascent
-        val labelBaseline = H + pad + labelSize
-        canvas.drawText("TrueSnap", contentL, labelBaseline, labelPaint)
+        // Vertical space available for all text rows
+        val availH = (stripH - 2 * pad).toFloat()
 
-        // Auth ID — maximise size so it fills the remaining strip height,
-        // then scale down until it fits the content width.
-        val authIdAvailH = stripH - pad - labelSize - pad.toFloat() * 0.3f
+        // Row heights as proportions of availH:
+        //   13.5 % label + 40.5 % authId + 19.5 % guide × 2 + gaps ≈ 97.8 %
+        val labelSize  = availH * 0.135f
+        val authIdSize = availH * 0.405f
+        val guideSize  = availH * 0.195f
+        val gap12 = availH * 0.018f   // between label and authId
+        val gap23 = availH * 0.018f   // between authId and guide1
+        val gap34 = availH * 0.012f   // between guide1 and guide2
+
+        val topY           = H.toFloat() + pad
+        val labelBaseline  = topY + labelSize
+        val authIdBaseline = labelBaseline + gap12 + authIdSize
+        val guide1Baseline = authIdBaseline + gap23 + guideSize
+        val guide2Baseline = guide1Baseline + gap34 + guideSize
+
+        // "TrueSnap" brand label
+        canvas.drawText(
+            "TrueSnap", contentL, labelBaseline,
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color    = Color.parseColor("#4CAF82")
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                textSize = labelSize
+            }
+        )
+
+        // Auth ID — dominant readable element; scale down only if it overflows
         val authIdPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.WHITE
-            typeface = Typeface.MONOSPACE
+            color          = Color.WHITE
+            typeface       = Typeface.MONOSPACE
             isFakeBoldText = true
-            textSize = authIdAvailH * 0.88f   // start large
+            textSize       = authIdSize
         }
-        while (authIdPaint.measureText(authId) > contentW && authIdPaint.textSize > 24f) {
-            authIdPaint.textSize -= 2f
+        val authIdMeasured = authIdPaint.measureText(authId)
+        if (authIdMeasured > contentW) {
+            authIdPaint.textSize = maxOf(authIdPaint.textSize * contentW / authIdMeasured, 24f)
         }
-        // Baseline at bottom of strip minus padding
-        val authIdBaseline = (H + stripH - pad).toFloat()
         canvas.drawText(authId, contentL, authIdBaseline, authIdPaint)
+
+        // Guidance lines — scale both together so the longer one fits contentW
+        val guide1 = "TrueSnap 진위확인 가능 사진"
+        val guide2 = "앱·웹(truesnap.app)에서 코드로 직접 확인하세요"
+        val guidePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color    = Color.parseColor("#CCCCCC")
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            textSize = guideSize
+        }
+        val maxGuideW = maxOf(guidePaint.measureText(guide1), guidePaint.measureText(guide2))
+        if (maxGuideW > contentW) {
+            guidePaint.textSize = maxOf(guidePaint.textSize * contentW / maxGuideW, 18f)
+        }
+        canvas.drawText(guide1, contentL, guide1Baseline, guidePaint)
+        canvas.drawText(guide2, contentL, guide2Baseline, guidePaint)
 
         return result
     }
