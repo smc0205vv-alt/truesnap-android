@@ -136,7 +136,8 @@ fun NicknameInputScreen(
                             nickname            = nickname.trim(),
                             lofiThumbnailBase64 = it.lofiThumbnailBase64,
                             cropHashes          = it.cropHashes,
-                            edgeDensities       = it.edgeDensities
+                            edgeDensities       = it.edgeDensities,
+                            edgeHog             = it.edgeHog
                         )
                     }
                 }) {
@@ -352,7 +353,8 @@ fun NicknameInputScreen(
                             nickname            = trimmed,
                             lofiThumbnailBase64 = it.lofiThumbnailBase64,
                             cropHashes          = it.cropHashes,
-                            edgeDensities       = it.edgeDensities
+                            edgeDensities       = it.edgeDensities,
+                            edgeHog             = it.edgeHog
                         )
                     }
                 }

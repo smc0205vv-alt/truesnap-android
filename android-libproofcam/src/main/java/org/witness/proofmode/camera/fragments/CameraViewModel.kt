@@ -100,7 +100,8 @@ sealed class CertificationState {
         val captureTimestampMs: Long,
         val lofiThumbnailBase64: String? = null,
         val cropHashes: List<String>? = null,
-        val edgeDensities: FloatArray? = null
+        val edgeDensities: FloatArray? = null,
+        val edgeHog: FloatArray? = null
     ) : CertificationState()
 }
 
@@ -739,10 +740,12 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                 val pHash         = service.calculatePHash(wmBytes)
                 val cropHashes    = service.calculateBlockHashes(wmBytes)
                 val edgeDensities = service.calculateEdgeDensities(wmBytes)
+                val edgeHog       = service.calculateEdgeHOG(wmBytes)
                 val thumbnail32   = service.generateThumbnail32(watermarked)
-                Timber.d("Watermark fingerprints: sha256=%s pHash=%s blocks=%d edges=%s thumb=%s",
+                Timber.d("Watermark fingerprints: sha256=%s pHash=%s blocks=%d edges=%s hog=%s thumb=%s",
                     sha256, pHash, cropHashes?.size ?: 0,
                     if (edgeDensities != null) "${edgeDensities.size}" else "null",
+                    if (edgeHog != null) "${edgeHog.size}" else "null",
                     if (thumbnail32 != null) "ok(${thumbnail32.length}B)" else "null")
 
                 // Update certificationState with all watermark-based values.
@@ -753,6 +756,7 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                         pHash               = pHash,
                         cropHashes          = cropHashes,
                         edgeDensities       = edgeDensities,
+                        edgeHog             = edgeHog,
                         lofiThumbnailBase64 = thumbnail32
                     )
                 }
@@ -778,7 +782,8 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
         nickname: String,
         lofiThumbnailBase64: String? = null,
         cropHashes: List<String>? = null,
-        edgeDensities: FloatArray? = null
+        edgeDensities: FloatArray? = null,
+        edgeHog: FloatArray? = null
     ) {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             _uploadState.value = UploadState.Uploading
@@ -790,7 +795,8 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                 nickname            = nickname,
                 lofiThumbnailBase64 = lofiThumbnailBase64,
                 cropHashes          = cropHashes,
-                edgeDensities       = edgeDensities
+                edgeDensities       = edgeDensities,
+                edgeHog             = edgeHog
             )
             val service = CertificationService()
             _uploadState.value = when (val result = service.uploadMetadata(request)) {
@@ -929,6 +935,7 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                     val pHash         = service.calculatePHash(wmBytes)
                     val cropHashes    = service.calculateBlockHashes(wmBytes)
                     val edgeDensities = service.calculateEdgeDensities(wmBytes)
+                    val edgeHog       = service.calculateEdgeHOG(wmBytes)
                     val thumbnail32   = service.generateThumbnail32(watermarked)
 
                     val request = org.witness.proofmode.camera.network.CertificationService.MetadataUploadRequest(
@@ -939,7 +946,8 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                         nickname            = nickname,
                         lofiThumbnailBase64 = thumbnail32,
                         cropHashes          = cropHashes,
-                        edgeDensities       = edgeDensities
+                        edgeDensities       = edgeDensities,
+                        edgeHog             = edgeHog
                     )
 
                     when (val result = service.uploadMetadata(request)) {

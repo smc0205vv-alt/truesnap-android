@@ -139,7 +139,8 @@ class CertificationService {
         val nickname: String,
         val lofiThumbnailBase64: String? = null,
         val cropHashes: List<String>? = null,
-        val edgeDensities: FloatArray? = null
+        val edgeDensities: FloatArray? = null,
+        val edgeHog: FloatArray? = null
     )
 
     sealed class MetadataUploadResult {
@@ -307,6 +308,11 @@ class CertificationService {
                 val arr = org.json.JSONArray()
                 request.edgeDensities.forEach { arr.put(it.toDouble()) }
                 put("edge_densities", arr)
+            }
+            if (request.edgeHog != null && request.edgeHog.isNotEmpty()) {
+                val arr = org.json.JSONArray()
+                request.edgeHog.forEach { arr.put(it.toDouble()) }
+                put("edge_hog", arr)
             }
             toString()
         }
@@ -577,6 +583,110 @@ class CertificationService {
             }
         } catch (e: Exception) {
             Timber.e(e, "Edge density calculation failed")
+            null
+        }
+    }
+
+    /**
+     * Computes HOG (Histogram of Oriented Gradients) per block in a 32×32 grid.
+     *
+     * Algorithm (must match server src/lib/phash.js _computeEdgeHOG):
+     *   1. Downsample to ≤ EDGE_MAX_DIM (bilinear)
+     *   2. Integer grayscale: floor(0.299·R + 0.587·G + 0.114·B)
+     *   3. Gaussian pre-blur 5×5, σ=1.0
+     *   4. Sobel 3×3: Gx and Gy separately
+     *   5. Per 32×32 block: 8-bin direction histogram for pixels with mag ≥ EDGE_MIN_GRADIENT=10
+     *      bin = floor(((atan2(Gy,Gx)×180/π + 360) % 360) / 45), L1-normalized, rounded to 3dp
+     *
+     * @return FloatArray of 8192 values (1024 blocks × 8 bins), or null on error.
+     */
+    fun calculateEdgeHOG(imageBytes: ByteArray): FloatArray? {
+        return try {
+            var bmp = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size) ?: return null
+
+            val maxDim = maxOf(bmp.width, bmp.height)
+            if (maxDim > EDGE_MAX_DIM) {
+                val scale = EDGE_MAX_DIM.toFloat() / maxDim
+                val newW = (bmp.width * scale).toInt().coerceAtLeast(1)
+                val newH = (bmp.height * scale).toInt().coerceAtLeast(1)
+                val small = Bitmap.createScaledBitmap(bmp, newW, newH, true)
+                bmp.recycle()
+                bmp = small
+            }
+
+            val W = bmp.width
+            val H = bmp.height
+
+            // Integer grayscale: floor(0.299·R + 0.587·G + 0.114·B)
+            val grayRaw = FloatArray(W * H)
+            for (y in 0 until H) {
+                for (x in 0 until W) {
+                    val c = bmp.getPixel(x, y)
+                    grayRaw[y * W + x] = (
+                        0.299f * ((c shr 16) and 0xFF) +
+                        0.587f * ((c shr 8)  and 0xFF) +
+                        0.114f * (c and 0xFF)
+                    ).toInt().toFloat()
+                }
+            }
+            bmp.recycle()
+
+            val gray = gaussianBlur(grayRaw, W, H)
+
+            // Sobel: Gx and Gy stored separately for direction computation
+            val gxArr = FloatArray(W * H)
+            val gyArr = FloatArray(W * H)
+            for (y in 1 until H - 1) {
+                for (x in 1 until W - 1) {
+                    val tl = gray[(y-1)*W+(x-1)]; val tc = gray[(y-1)*W+x]; val tr = gray[(y-1)*W+(x+1)]
+                    val ml = gray[y*W+(x-1)];                                 val mr = gray[y*W+(x+1)]
+                    val bl = gray[(y+1)*W+(x-1)]; val bc = gray[(y+1)*W+x]; val br = gray[(y+1)*W+(x+1)]
+                    gxArr[y * W + x] = -tl + tr - 2f*ml + 2f*mr - bl + br
+                    gyArr[y * W + x] = -tl - 2f*tc - tr + bl + 2f*bc + br
+                }
+            }
+
+            val blockW = W / EDGE_GRID_COLS
+            val blockH = H / EDGE_GRID_ROWS
+            if (blockW == 0 || blockH == 0) return null
+
+            val result = FloatArray(EDGE_GRID_COLS * EDGE_GRID_ROWS * 8)
+            val RAD_TO_DEG = 180.0 / Math.PI
+
+            for (idx in 0 until EDGE_GRID_COLS * EDGE_GRID_ROWS) {
+                val row = idx / EDGE_GRID_COLS
+                val col = idx % EDGE_GRID_COLS
+                val bx = col * blockW
+                val by = row * blockH
+
+                val hist = FloatArray(8)
+                var total = 0
+
+                for (py in by until by + blockH) {
+                    for (px in bx until bx + blockW) {
+                        val gx = gxArr[py * W + px]
+                        val gy = gyArr[py * W + px]
+                        val mag = kotlin.math.sqrt((gx*gx + gy*gy).toDouble()).toFloat()
+                        if (mag >= EDGE_MIN_GRADIENT) {
+                            val dir = kotlin.math.atan2(gy.toDouble(), gx.toDouble()) * RAD_TO_DEG
+                            val bin = ((dir + 360.0) % 360.0 / 45.0).toInt().coerceIn(0, 7)
+                            hist[bin]++
+                            total++
+                        }
+                    }
+                }
+
+                val base = idx * 8
+                if (total > 0) {
+                    for (b in 0 until 8) {
+                        result[base + b] = Math.round(hist[b] / total * 1000f) / 1000f
+                    }
+                }
+            }
+
+            result
+        } catch (e: Exception) {
+            Timber.e(e, "Edge HOG calculation failed")
             null
         }
     }
