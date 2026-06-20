@@ -137,7 +137,8 @@ fun NicknameInputScreen(
                             lofiThumbnailBase64 = it.lofiThumbnailBase64,
                             cropHashes          = it.cropHashes,
                             edgeDensities       = it.edgeDensities,
-                            edgeHog             = it.edgeHog
+                            edgeHog             = it.edgeHog,
+                            edgeStdDev          = it.edgeStdDev
                         )
                     }
                 }) {
@@ -354,7 +355,8 @@ fun NicknameInputScreen(
                             lofiThumbnailBase64 = it.lofiThumbnailBase64,
                             cropHashes          = it.cropHashes,
                             edgeDensities       = it.edgeDensities,
-                            edgeHog             = it.edgeHog
+                            edgeHog             = it.edgeHog,
+                            edgeStdDev          = it.edgeStdDev
                         )
                     }
                 }

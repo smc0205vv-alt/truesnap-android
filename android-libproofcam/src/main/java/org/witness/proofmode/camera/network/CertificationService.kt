@@ -140,7 +140,8 @@ class CertificationService {
         val lofiThumbnailBase64: String? = null,
         val cropHashes: List<String>? = null,
         val edgeDensities: FloatArray? = null,
-        val edgeHog: FloatArray? = null
+        val edgeHog: FloatArray? = null,
+        val edgeStdDev: FloatArray? = null
     )
 
     sealed class MetadataUploadResult {
@@ -313,6 +314,11 @@ class CertificationService {
                 val arr = org.json.JSONArray()
                 request.edgeHog.forEach { arr.put(it.toDouble()) }
                 put("edge_hog", arr)
+            }
+            if (request.edgeStdDev != null && request.edgeStdDev.isNotEmpty()) {
+                val arr = org.json.JSONArray()
+                request.edgeStdDev.forEach { arr.put(it.toDouble()) }
+                put("edge_stddev", arr)
             }
             toString()
         }
@@ -600,6 +606,81 @@ class CertificationService {
      *
      * @return FloatArray of 8192 values (1024 blocks × 8 bins), or null on error.
      */
+    /**
+     * Computes per-block pixel standard deviation for texture tamper detection.
+     *
+     * Algorithm (must match server src/lib/phash.js _computeEdgeStdDev):
+     *   1. Downsample to ≤ EDGE_MAX_DIM (bilinear)
+     *   2. Float grayscale: 0.299·R + 0.587·G + 0.114·B  (no floor — matches density)
+     *   3. Gaussian pre-blur 5×5, σ=1.0
+     *   4. Per 32×32 block: stddev = sqrt(Σ(x−mean)² / n), rounded to 3dp
+     *
+     * @return FloatArray of 1024 values (32×32 grid), or null on error.
+     */
+    fun calculateEdgeStdDev(imageBytes: ByteArray): FloatArray? {
+        return try {
+            var bmp = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size) ?: return null
+
+            val maxDim = maxOf(bmp.width, bmp.height)
+            if (maxDim > EDGE_MAX_DIM) {
+                val scale = EDGE_MAX_DIM.toFloat() / maxDim
+                val newW = (bmp.width * scale).toInt().coerceAtLeast(1)
+                val newH = (bmp.height * scale).toInt().coerceAtLeast(1)
+                val small = Bitmap.createScaledBitmap(bmp, newW, newH, true)
+                bmp.recycle()
+                bmp = small
+            }
+
+            val W = bmp.width
+            val H = bmp.height
+
+            // Float grayscale (same as density — no integer floor)
+            val grayRaw = FloatArray(W * H)
+            for (y in 0 until H) {
+                for (x in 0 until W) {
+                    val c = bmp.getPixel(x, y)
+                    grayRaw[y * W + x] =
+                        0.299f * ((c shr 16) and 0xFF) +
+                        0.587f * ((c shr 8)  and 0xFF) +
+                        0.114f * (c and 0xFF)
+                }
+            }
+            bmp.recycle()
+
+            val gray = gaussianBlur(grayRaw, W, H)
+
+            val blockW = W / EDGE_GRID_COLS
+            val blockH = H / EDGE_GRID_ROWS
+            if (blockW == 0 || blockH == 0) return null
+
+            FloatArray(EDGE_GRID_COLS * EDGE_GRID_ROWS) { idx ->
+                val row = idx / EDGE_GRID_COLS
+                val col = idx % EDGE_GRID_COLS
+                val bx = col * blockW
+                val by = row * blockH
+                val n = blockW * blockH
+
+                var sum = 0f
+                for (py in by until by + blockH)
+                    for (px in bx until bx + blockW)
+                        sum += gray[py * W + px]
+                val mean = sum / n
+
+                var variance = 0f
+                for (py in by until by + blockH)
+                    for (px in bx until bx + blockW) {
+                        val diff = gray[py * W + px] - mean
+                        variance += diff * diff
+                    }
+                val stddev = kotlin.math.sqrt((variance / n).toDouble()).toFloat()
+                Math.round(stddev * 1000f) / 1000f
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "Edge stddev calculation failed")
+            null
+        }
+    }
+
     fun calculateEdgeHOG(imageBytes: ByteArray): FloatArray? {
         return try {
             var bmp = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size) ?: return null
