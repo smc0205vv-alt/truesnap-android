@@ -5,6 +5,9 @@ import androidx.camera.core.ImageCapture
 import androidx.camera.viewfinder.compose.MutableCoordinateTransformer
 import androidx.compose.foundation.Image
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import coil.compose.AsyncImage
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -71,6 +74,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.round
 import androidx.constraintlayout.compose.ConstraintLayout
@@ -91,18 +95,12 @@ fun PhotoCamera(modifier: Modifier = Modifier, cameraViewModel: CameraViewModel 
                 lifecycleOwner: LifecycleOwner = LocalLifecycleOwner.current,
                 onNavigateToVideo: () -> Unit,
                 onNavigateToPreview: () -> Unit,
-                onNavigateToEdit: () -> Unit = {},
+                onNavigateToSessionSelect: () -> Unit = {},
                 onClose:()-> Unit = {}) {
 
     val context = LocalContext.current
-    // Auto-navigate to edit screen when a new photo is captured
-    val lastCapturedMedia by cameraViewModel.lastCapturedMedia.collectAsStateWithLifecycle()
-    val lastCapturedUri = lastCapturedMedia?.uri
-    LaunchedEffect(lastCapturedUri) {
-        if (lastCapturedUri != null) {
-            onNavigateToEdit()
-        }
-    }
+    val mediaFiles by cameraViewModel.mediaFiles.collectAsStateWithLifecycle()
+    val photoItems = remember(mediaFiles) { mediaFiles.filter { !it.isVideo } }
     val surfaceRequest by cameraViewModel.surfaceRequest.collectAsStateWithLifecycle()
     var showGridLines:Boolean by remember {
         mutableStateOf(false)
@@ -183,7 +181,7 @@ fun PhotoCamera(modifier: Modifier = Modifier, cameraViewModel: CameraViewModel 
                     .fillMaxSize()
                     .background(Color.Black)) {
                     val (viewFinder, topScrim, topBAr, cancelButton, countDownStateView, bottomBg, captureButton, cameraSwitcher,
-                        flashModeRow) = createRefs()
+                        flashModeRow, thumbnailStrip, certifyButton) = createRefs()
                     // The viewfinder sits in a full-screen box and is itself sized to the
                     // selected portrait aspect (3:4 / 9:16 / 1:1), so switching ratios visibly
                     // resizes the preview window. ContentScale.Crop then fills that box with
@@ -397,6 +395,45 @@ fun PhotoCamera(modifier: Modifier = Modifier, cameraViewModel: CameraViewModel 
                         }
                     }
 
+                    // Session photo thumbnail strip — appears above bottom controls
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .constrainAs(thumbnailStrip) {
+                                bottom.linkTo(bottomBg.top)
+                                start.linkTo(parent.start)
+                                end.linkTo(parent.end)
+                            }
+                            .background(Color.Black.copy(alpha = 0.6f))
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (photoItems.isNotEmpty()) {
+                            Text(
+                                "${photoItems.size}장",
+                                color = Color.White,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
+                            LazyRow(
+                                modifier = Modifier.weight(1f),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                items(photoItems.take(20), key = { it.uri.toString() }) { media ->
+                                    AsyncImage(
+                                        model = media.uri,
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier
+                                            .size(52.dp)
+                                            .clip(RoundedCornerShape(4.dp))
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     Box(modifier = Modifier
                         .fillMaxWidth()
                         .height(dimensionResource(R.dimen.transparent_view_height))
@@ -446,6 +483,31 @@ fun PhotoCamera(modifier: Modifier = Modifier, cameraViewModel: CameraViewModel 
                             Icon(imageVector = ImageVector.vectorResource(R.drawable.ic_switch),
                                 tint = Color.White,
                                 contentDescription = null)
+                        }
+                    }
+
+                    // "인증하기" button — left of shutter, visible when session has photos
+                    AnimatedVisibility(
+                        modifier = Modifier.constrainAs(certifyButton) {
+                            top.linkTo(captureButton.top)
+                            bottom.linkTo(captureButton.bottom)
+                            end.linkTo(captureButton.start)
+                            start.linkTo(parent.start)
+                        },
+                        visible = photoItems.isNotEmpty() &&
+                                  (countDownState == CountDownState.Idle || countDownState == CountDownState.Completed)
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                            modifier = Modifier
+                                .size(60.dp)
+                                .clip(CircleShape)
+                                .background(AccentGreen)
+                                .clickable(onClick = onNavigateToSessionSelect)
+                        ) {
+                            Text("인증", color = Color.Black, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text("하기", color = Color.Black, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         }
                     }
 

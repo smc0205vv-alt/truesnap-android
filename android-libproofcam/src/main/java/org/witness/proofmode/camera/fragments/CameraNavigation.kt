@@ -64,8 +64,7 @@ fun CameraNavigation(
                         popUpTo(CameraDestinations.PHOTO) { inclusive = true }
                     }
                 },
-                // After shutter: go to session preview instead of directly to edit
-                onNavigateToEdit     = { navController.navigate(CameraDestinations.SESSION_SELECT) },
+                onNavigateToSessionSelect = { navController.navigate(CameraDestinations.SESSION_SELECT) },
                 onClose              = onClosed
             )
         }

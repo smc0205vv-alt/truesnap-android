@@ -58,14 +58,10 @@ fun SessionSelectScreen(
     var selected by remember { mutableStateOf<Set<Media>>(emptySet()) }
     var initialSelectionDone by remember { mutableStateOf(false) }
 
-    // Pre-select the last captured photo once the list loads.
+    // Default: select all photos once the list loads.
     LaunchedEffect(photoItems) {
         if (!initialSelectionDone && photoItems.isNotEmpty()) {
-            val lastCapUri = viewModel.lastCapturedMedia.value?.uri
-            val match = if (lastCapUri != null) {
-                photoItems.firstOrNull { it.uri.lastPathSegment == lastCapUri.lastPathSegment }
-            } else null
-            selected = setOf(match ?: photoItems.first())
+            selected = photoItems.toSet()
             initialSelectionDone = true
         }
     }
@@ -218,7 +214,7 @@ fun SessionSelectScreen(
                 )
             }
 
-            // Camera button — go back to camera to shoot more
+            // "추가 촬영" — return to camera to take more photos
             IconButton(
                 onClick = onNavigateToCamera,
                 modifier = Modifier
@@ -228,7 +224,7 @@ fun SessionSelectScreen(
             ) {
                 Icon(
                     Icons.Filled.CameraAlt,
-                    contentDescription = "카메라로 돌아가기",
+                    contentDescription = "추가 촬영",
                     tint = Color.White,
                     modifier = Modifier.size(26.dp)
                 )
