@@ -229,11 +229,6 @@ class CameraViewModel(private val activity: CameraActivity, private val app: App
                 .collect { media ->
                     _thumbPreviewUri.value = media.firstOrNull()
                     _mediaFiles.value = media
-                    // On the first load after an app restart, restore _lastCapturedMedia
-                    // from the most recent file so the user can certify pending photos.
-                    if (_lastCapturedMedia.value == null) {
-                        _lastCapturedMedia.value = media.firstOrNull()
-                    }
                 }
         }
     }
