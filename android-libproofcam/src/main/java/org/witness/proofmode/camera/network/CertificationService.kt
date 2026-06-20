@@ -153,14 +153,14 @@ class CertificationService {
 
     /**
      * Downscales [bitmap] to [THUMBNAIL_SIZE]×[THUMBNAIL_SIZE] pixels (bilinear) and returns it
-     * as a base64-encoded PNG string. Called on the watermarked final image immediately after
-     * watermark composition — the result is stored server-side for the verify display.
+     * as a base64-encoded JPEG (quality=60) string. Called on the watermarked final image immediately
+     * after watermark composition — the result is stored server-side for the verify display.
      */
     fun generateThumbnail32(bitmap: Bitmap): String? {
         return try {
             val thumb = Bitmap.createScaledBitmap(bitmap, THUMBNAIL_SIZE, THUMBNAIL_SIZE, true)
             val out = ByteArrayOutputStream()
-            thumb.compress(Bitmap.CompressFormat.PNG, 100, out)
+            thumb.compress(Bitmap.CompressFormat.JPEG, 60, out)
             thumb.recycle()
             Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
         } catch (e: Exception) {
