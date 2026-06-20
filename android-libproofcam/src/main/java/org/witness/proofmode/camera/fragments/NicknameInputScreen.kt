@@ -212,6 +212,13 @@ fun NicknameInputScreen(
                     color = Color(0xFF888888),
                     fontSize = 11.sp
                 )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "인증 시 사진의 요약 정보가 저장됩니다. 색상과 구도만 흐릿하게 남는 수준으로, 사람이나 사물을 알아볼 수 없으며 원본 복원도 불가능합니다.",
+                    color = Color(0xFF666666),
+                    fontSize = 10.sp,
+                    lineHeight = 14.sp
+                )
             }
         }
 
@@ -326,6 +333,15 @@ fun NicknameInputScreen(
             fontSize = 12.sp,
             modifier = Modifier
                 .align(Alignment.CenterHorizontally)
+                .padding(bottom = 4.dp)
+        )
+        Text(
+            "인증 시 사진의 요약 정보가 저장됩니다. 색상과 구도만 흐릿하게 남는 수준으로, 사람이나 사물을 알아볼 수 없으며 원본 복원도 불가능합니다.",
+            color = Color(0xFF666666),
+            fontSize = 10.sp,
+            lineHeight = 14.sp,
+            modifier = Modifier
+                .padding(horizontal = 16.dp)
                 .padding(bottom = 8.dp)
         )
 
