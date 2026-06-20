@@ -71,6 +71,17 @@ class CertificationService {
         /** Fixed block grid for crop-region hashes. Must match server hash_image.py. */
         const val BLOCK_GRID_COLS = 16
         const val BLOCK_GRID_ROWS = 16
+
+        // Edge density constants — must match server src/lib/phash.js
+        private const val EDGE_MAX_DIM      = 1024     // downsample to this max dimension
+        private const val EDGE_REL_FACTOR   = 0.25f    // threshold = blockMax × EDGE_REL_FACTOR
+        private const val EDGE_MIN_GRADIENT = 10f      // absolute floor for uniform blocks
+        private const val EDGE_GRID_COLS    = 32       // independent of pHash block grid (16×16)
+        private const val EDGE_GRID_ROWS    = 32
+
+        // Gaussian pre-blur constants — must match server src/lib/phash.js
+        private const val GAUSSIAN_KERNEL_SIZE = 5     // 5×5 separable kernel
+        private const val GAUSSIAN_SIGMA       = 1.0f  // σ in pixels
     }
 
     // ---------------------------------------------------------------------------
@@ -124,7 +135,8 @@ class CertificationService {
         val captureTimestampMs: Long,
         val nickname: String,
         val lofiThumbnailBase64: String? = null,
-        val cropHashes: List<String>? = null
+        val cropHashes: List<String>? = null,
+        val edgeDensities: FloatArray? = null
     )
 
     sealed class MetadataUploadResult {
@@ -285,6 +297,11 @@ class CertificationService {
             if (!request.cropHashes.isNullOrEmpty()) {
                 put("crop_hashes", org.json.JSONArray(request.cropHashes))
             }
+            if (request.edgeDensities != null && request.edgeDensities.isNotEmpty()) {
+                val arr = org.json.JSONArray()
+                request.edgeDensities.forEach { arr.put(it.toDouble()) }
+                put("edge_densities", arr)
+            }
             toString()
         }
 
@@ -412,6 +429,148 @@ class CertificationService {
             hashes
         } catch (e: Exception) {
             Timber.e(e, "Block hash calculation failed")
+            null
+        }
+    }
+
+    /**
+     * Separable Gaussian blur (GAUSSIAN_KERNEL_SIZE × GAUSSIAN_KERNEL_SIZE, σ = GAUSSIAN_SIGMA).
+     * Border handling: clamp-to-edge (matches Node.js Math.max/Math.min logic).
+     * Must match server src/lib/phash.js _gaussianBlur().
+     */
+    private fun gaussianBlur(gray: FloatArray, W: Int, H: Int): FloatArray {
+        val half = GAUSSIAN_KERNEL_SIZE / 2
+        // Build and normalize 1D kernel
+        val kernel = FloatArray(GAUSSIAN_KERNEL_SIZE) { i ->
+            val d = (i - half).toFloat()
+            kotlin.math.exp(-(d * d / (2f * GAUSSIAN_SIGMA * GAUSSIAN_SIGMA)).toDouble()).toFloat()
+        }
+        val kernelSum = kernel.sum()
+        for (i in kernel.indices) kernel[i] /= kernelSum
+
+        val tmp = FloatArray(W * H)
+        val out = FloatArray(W * H)
+
+        // Horizontal pass: gray → tmp
+        for (y in 0 until H) {
+            for (x in 0 until W) {
+                var s = 0f
+                for (k in 0 until GAUSSIAN_KERNEL_SIZE) {
+                    val sx = (x + k - half).coerceIn(0, W - 1)
+                    s += kernel[k] * gray[y * W + sx]
+                }
+                tmp[y * W + x] = s
+            }
+        }
+
+        // Vertical pass: tmp → out
+        for (y in 0 until H) {
+            for (x in 0 until W) {
+                var s = 0f
+                for (k in 0 until GAUSSIAN_KERNEL_SIZE) {
+                    val sy = (y + k - half).coerceIn(0, H - 1)
+                    s += kernel[k] * tmp[sy * W + x]
+                }
+                out[y * W + x] = s
+            }
+        }
+
+        return out
+    }
+
+    /**
+     * Computes Sobel edge density per block in a 32×32 grid.
+     *
+     * Algorithm (must match server src/lib/phash.js _computeEdgeFeatures):
+     *   1. Downsample image to ≤ EDGE_MAX_DIM px (bilinear, same max-dim logic as Node.js)
+     *   2. Convert to grayscale: 0.299·R + 0.587·G + 0.114·B
+     *   3. Gaussian pre-blur 5×5, σ=1.0 (separable, clamp-to-edge)
+     *   4. Sobel 3×3 gradient magnitude per pixel: sqrt(Gx²+Gy²)
+     *   5. Per 32×32 block:
+     *      - threshold = max(blockMaxGradient × 0.25, EDGE_MIN_GRADIENT)
+     *      - density = fraction of pixels above threshold
+     *
+     * @return FloatArray of 1024 density values (0.0–1.0), or null on error.
+     */
+    fun calculateEdgeDensities(imageBytes: ByteArray): FloatArray? {
+        return try {
+            var bmp = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size) ?: return null
+
+            // Downsample to ≤ EDGE_MAX_DIM (matches Node.js fit:'inside' logic)
+            val maxDim = maxOf(bmp.width, bmp.height)
+            if (maxDim > EDGE_MAX_DIM) {
+                val scale = EDGE_MAX_DIM.toFloat() / maxDim
+                val newW = (bmp.width * scale).toInt().coerceAtLeast(1)
+                val newH = (bmp.height * scale).toInt().coerceAtLeast(1)
+                val small = Bitmap.createScaledBitmap(bmp, newW, newH, true) // bilinear
+                bmp.recycle()
+                bmp = small
+            }
+
+            val W = bmp.width
+            val H = bmp.height
+
+            // Grayscale float array (ITU-R 601-2 luma, same coefficients as pHash)
+            val grayRaw = FloatArray(W * H)
+            for (y in 0 until H) {
+                for (x in 0 until W) {
+                    val c = bmp.getPixel(x, y)
+                    grayRaw[y * W + x] =
+                        0.299f * ((c shr 16) and 0xFF) +
+                        0.587f * ((c shr 8)  and 0xFF) +
+                        0.114f * (c and 0xFF)
+                }
+            }
+            bmp.recycle()
+
+            // Gaussian pre-blur (5×5, σ=GAUSSIAN_SIGMA) — reduces noise before Sobel
+            val gray = gaussianBlur(grayRaw, W, H)
+
+            // Sobel 3×3 gradient magnitude (borders remain 0)
+            val mag = FloatArray(W * H)
+            for (y in 1 until H - 1) {
+                for (x in 1 until W - 1) {
+                    val tl = gray[(y-1)*W+(x-1)]; val tc = gray[(y-1)*W+x]; val tr = gray[(y-1)*W+(x+1)]
+                    val ml = gray[y*W+(x-1)];                                 val mr = gray[y*W+(x+1)]
+                    val bl = gray[(y+1)*W+(x-1)]; val bc = gray[(y+1)*W+x]; val br = gray[(y+1)*W+(x+1)]
+                    val gx = -tl + tr - 2f*ml + 2f*mr - bl + br
+                    val gy = -tl - 2f*tc - tr + bl + 2f*bc + br
+                    mag[y * W + x] = kotlin.math.sqrt((gx*gx + gy*gy).toDouble()).toFloat()
+                }
+            }
+
+            // Per-block edge density (32×32 grid, integer division)
+            val blockW = W / EDGE_GRID_COLS
+            val blockH = H / EDGE_GRID_ROWS
+            if (blockW == 0 || blockH == 0) return null
+
+            FloatArray(EDGE_GRID_COLS * EDGE_GRID_ROWS) { idx ->
+                val row = idx / EDGE_GRID_COLS
+                val col = idx % EDGE_GRID_COLS
+                val bx = col * blockW
+                val by = row * blockH
+
+                // Local max for relative threshold (robust to global contrast changes)
+                var maxMag = EDGE_MIN_GRADIENT
+                for (py in by until by + blockH) {
+                    for (px in bx until bx + blockW) {
+                        val m = mag[py * W + px]
+                        if (m > maxMag) maxMag = m
+                    }
+                }
+                val threshold = maxMag * EDGE_REL_FACTOR
+
+                var edgeCount = 0
+                val total = blockW * blockH
+                for (py in by until by + blockH) {
+                    for (px in bx until bx + blockW) {
+                        if (mag[py * W + px] > threshold) edgeCount++
+                    }
+                }
+                edgeCount.toFloat() / total
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "Edge density calculation failed")
             null
         }
     }

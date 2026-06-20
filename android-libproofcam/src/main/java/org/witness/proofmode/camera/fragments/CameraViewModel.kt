@@ -99,7 +99,8 @@ sealed class CertificationState {
         val pHash: String?,
         val captureTimestampMs: Long,
         val lofiThumbnailBase64: String? = null,
-        val cropHashes: List<String>? = null
+        val cropHashes: List<String>? = null,
+        val edgeDensities: FloatArray? = null
     ) : CertificationState()
 }
 
@@ -740,22 +741,25 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
 
                 // Compute hashes from the final watermarked JPEG bytes.
                 val service = CertificationService()
-                val sha256      = service.calculateSha256(wmBytes)
-                val pHash       = service.calculatePHash(wmBytes)
-                val cropHashes  = service.calculateBlockHashes(wmBytes)
+                val sha256        = service.calculateSha256(wmBytes)
+                val pHash         = service.calculatePHash(wmBytes)
+                val cropHashes    = service.calculateBlockHashes(wmBytes)
+                val edgeDensities = service.calculateEdgeDensities(wmBytes)
                 // Keep a reference so startCertificationUpload can call registerCropHashes
                 // after the metadata upload succeeds (server recomputes hashes via Python).
                 _wmBytesForCropReg = wmBytes
-                Timber.d("Watermark hashes: sha256=%s pHash=%s blocks=%d",
-                    sha256, pHash, cropHashes?.size ?: 0)
+                Timber.d("Watermark hashes: sha256=%s pHash=%s blocks=%d edges=%s",
+                    sha256, pHash, cropHashes?.size ?: 0,
+                    if (edgeDensities != null) "${edgeDensities.size}" else "null")
 
                 // Update certificationState with the watermark-based hashes.
                 val currentDone = _certificationState.value as? CertificationState.Done
                 if (currentDone != null) {
                     _certificationState.value = currentDone.copy(
-                        sha256Hash = sha256,
-                        pHash      = pHash,
-                        cropHashes = cropHashes
+                        sha256Hash    = sha256,
+                        pHash         = pHash,
+                        cropHashes    = cropHashes,
+                        edgeDensities = edgeDensities
                     )
                 }
 
@@ -779,7 +783,8 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
         captureTimestampMs: Long,
         nickname: String,
         lofiThumbnailBase64: String? = null,
-        cropHashes: List<String>? = null
+        cropHashes: List<String>? = null,
+        edgeDensities: FloatArray? = null
     ) {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             _uploadState.value = UploadState.Uploading
@@ -790,7 +795,8 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                 captureTimestampMs  = captureTimestampMs,
                 nickname            = nickname,
                 lofiThumbnailBase64 = lofiThumbnailBase64,
-                cropHashes          = cropHashes
+                cropHashes          = cropHashes,
+                edgeDensities       = edgeDensities
             )
             val service = CertificationService()
             _uploadState.value = when (val result = service.uploadMetadata(request)) {
@@ -929,9 +935,10 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                     )
 
                     val service = org.witness.proofmode.camera.network.CertificationService()
-                    val sha256     = service.calculateSha256(wmBytes)
-                    val pHash      = service.calculatePHash(wmBytes)
-                    val cropHashes = service.calculateBlockHashes(wmBytes)
+                    val sha256        = service.calculateSha256(wmBytes)
+                    val pHash         = service.calculatePHash(wmBytes)
+                    val cropHashes    = service.calculateBlockHashes(wmBytes)
+                    val edgeDensities = service.calculateEdgeDensities(wmBytes)
 
                     val request = org.witness.proofmode.camera.network.CertificationService.MetadataUploadRequest(
                         authId              = item.certDone.authId,
@@ -940,7 +947,8 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                         captureTimestampMs  = item.certDone.captureTimestampMs,
                         nickname            = nickname,
                         lofiThumbnailBase64 = item.certDone.lofiThumbnailBase64,
-                        cropHashes          = cropHashes
+                        cropHashes          = cropHashes,
+                        edgeDensities       = edgeDensities
                     )
 
                     when (val result = service.uploadMetadata(request)) {
