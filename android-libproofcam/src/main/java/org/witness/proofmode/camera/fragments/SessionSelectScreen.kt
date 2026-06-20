@@ -21,13 +21,14 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.vectorResource
+import org.witness.proofmode.camera.R
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -223,7 +224,7 @@ fun SessionSelectScreen(
                     .background(Color(0xFF2A2A2A))
             ) {
                 Icon(
-                    Icons.Filled.CameraAlt,
+                    ImageVector.vectorResource(R.drawable.ic_outline_camera_rear),
                     contentDescription = "추가 촬영",
                     tint = Color.White,
                     modifier = Modifier.size(26.dp)
