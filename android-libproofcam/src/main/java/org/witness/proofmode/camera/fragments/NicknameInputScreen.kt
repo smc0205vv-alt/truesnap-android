@@ -70,6 +70,9 @@ fun NicknameInputScreen(
     val isBatchMode = batchQueue.isNotEmpty()
     val doneState   = certState as? CertificationState.Done
 
+    // 진입 시점 로그 — batchCertItems.size가 예상 장수와 다르면 여기서 감지됨
+    android.util.Log.d("BATCH_TRACE", "NicknameInputScreen: isBatchMode=$isBatchMode batchQueue.size=${batchQueue.size} batchCertItems.size=${batchCertItems.size}")
+
     var nickname    by remember { mutableStateOf("") }
     var isConfirmed by remember { mutableStateOf(false) }
     val recentNames = remember { viewModel.getRecentNames() }

@@ -169,7 +169,9 @@ fun PhotoEditScreen(
     var pendingSavedEdits: Triple<Float, Float, Float>? by remember { mutableStateOf(null) }
 
     LaunchedEffect(certificationState) {
+        Timber.d("BATCH_TRACE EditScreen LaunchedEffect: certState=${certificationState::class.simpleName} batchIndex=$batchEditIndex batchTotal=$batchTotal")
         if (certificationState is CertificationState.Done) {
+            Timber.d("BATCH_TRACE EditScreen calling onCertDone for index=$batchEditIndex")
             onCertDone(certificationState as CertificationState.Done, pendingSavedEdits)
             pendingSavedEdits = null
         }

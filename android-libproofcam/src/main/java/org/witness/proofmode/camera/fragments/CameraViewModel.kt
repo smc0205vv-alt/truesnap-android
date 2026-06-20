@@ -843,15 +843,18 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
 
     /** Initialises a new batch with [selected] session photos (max [MAX_BATCH_SIZE]). */
     fun initBatch(selected: List<Media>) {
-        Timber.d("initBatch: selected=${selected.size}, prevBatchCertItems=${_batchCertItems.value.size}")
+        Timber.d("BATCH_TRACE initBatch: selected.size=${selected.size}, prevCertItems=${_batchCertItems.value.size}")
+        selected.forEachIndexed { i, m -> Timber.d("BATCH_TRACE initBatch queue[$i]=${m.uri.lastPathSegment}") }
         _batchQueue.value = selected.take(MAX_BATCH_SIZE)
         _batchEditIndex.value = 0
         _batchCertItems.value = emptyList()
+        Timber.d("BATCH_TRACE initBatch after clear: certItems.size=${_batchCertItems.value.size}")
         _batchGlobalEdits.value = null
         _batchUploadState.value = BatchUploadState.Idle
         _certificationState.value = CertificationState.Idle
         _watermarkState.value = WatermarkState.Idle
         _lastCapturedMedia.value = _batchQueue.value.firstOrNull()
+        Timber.d("BATCH_TRACE initBatch done: queue.size=${_batchQueue.value.size}")
     }
 
     /**
@@ -865,8 +868,14 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
         savedEdits: Triple<Float, Float, Float>? = null
     ) {
         val media = _lastCapturedMedia.value ?: return
-        Timber.d("acceptBatchCertItem: editIndex=${_batchEditIndex.value}, queueSize=${_batchQueue.value.size}, prevCertItems=${_batchCertItems.value.size}")
+        Timber.d("BATCH_TRACE acceptBatchCertItem: authId=${certDone.authId} editIndex=${_batchEditIndex.value} queueSize=${_batchQueue.value.size} prevCertItems=${_batchCertItems.value.size}")
+        // Guard: authId 중복 방지 (LaunchedEffect 이중 호출 방어)
+        if (_batchCertItems.value.any { it.certDone.authId == certDone.authId }) {
+            Timber.w("BATCH_TRACE acceptBatchCertItem: duplicate authId=${certDone.authId}, skipping")
+            return
+        }
         _batchCertItems.value = _batchCertItems.value + BatchItem(media, certDone)
+        Timber.d("BATCH_TRACE acceptBatchCertItem after add: certItems.size=${_batchCertItems.value.size}")
         if (savedEdits != null) _batchGlobalEdits.value = savedEdits
 
         val nextIndex = _batchEditIndex.value + 1
