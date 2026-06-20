@@ -668,8 +668,13 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                 authId, if (lofiThumbnail != null) "ok" else "null")
 
             // 4. Overwrite the capture file with the edited JPEG
+            // Use contentResolver to support both file:// and content:// URIs.
             try {
-                FileOutputStream(uri.toFile()).use { os -> os.write(imageBytes) }
+                if (uri.scheme == "file") {
+                    FileOutputStream(uri.toFile()).use { os -> os.write(imageBytes) }
+                } else {
+                    app.contentResolver.openOutputStream(uri, "wt")?.use { os -> os.write(imageBytes) }
+                }
             } catch (e: Exception) {
                 Timber.e(e, "Failed to save edited bitmap to %s", uri)
             }
@@ -712,8 +717,12 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             _watermarkState.value = WatermarkState.Generating
             try {
-                val photo = android.graphics.BitmapFactory.decodeFile(mediaUri.toFile().absolutePath)
-                    ?: throw Exception("이미지 디코딩 실패")
+                val photo = if (mediaUri.scheme == "file") {
+                    android.graphics.BitmapFactory.decodeFile(mediaUri.toFile().absolutePath)
+                } else {
+                    app.contentResolver.openInputStream(mediaUri)
+                        ?.use { android.graphics.BitmapFactory.decodeStream(it) }
+                } ?: throw Exception("이미지 디코딩 실패")
                 val watermarked = WatermarkComposer.compose(photo, authId)
                 photo.recycle()
 
@@ -892,8 +901,13 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                 var uploadError: String? = null
 
                 try {
-                    val photo = android.graphics.BitmapFactory.decodeFile(item.media.uri.toFile().absolutePath)
-                        ?: throw Exception("이미지 디코딩 실패")
+                    val itemUri = item.media.uri
+                    val photo = if (itemUri.scheme == "file") {
+                        android.graphics.BitmapFactory.decodeFile(itemUri.toFile().absolutePath)
+                    } else {
+                        app.contentResolver.openInputStream(itemUri)
+                            ?.use { android.graphics.BitmapFactory.decodeStream(it) }
+                    } ?: throw Exception("이미지 디코딩 실패")
                     val watermarked = WatermarkComposer.compose(photo, item.certDone.authId)
                     photo.recycle()
                     watermarkBitmap = watermarked
