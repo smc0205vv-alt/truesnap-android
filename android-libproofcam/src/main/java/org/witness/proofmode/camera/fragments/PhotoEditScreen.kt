@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -33,8 +32,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -91,29 +91,39 @@ private fun applyColorMatrix(src: Bitmap, matrix: ColorMatrix): Bitmap {
     return out
 }
 
+/**
+ * @param onCertDone  Called when [CertificationState.Done] is reached.
+ *   Receives (done, savedEdits) where savedEdits is non-null when "전체 적용" is active.
+ *   The caller decides whether to navigate to the next photo or to the nickname screen.
+ */
 @Composable
 fun PhotoEditScreen(
     viewModel: CameraViewModel,
     onNavigateBack: () -> Unit,
-    onNavigateToNickname: () -> Unit = {}
+    onCertDone: (CertificationState.Done, savedEdits: Triple<Float, Float, Float>?) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
 
     val lastMedia          by viewModel.lastCapturedMedia.collectAsStateWithLifecycle()
     val certificationState by viewModel.certificationState.collectAsStateWithLifecycle()
+    val batchQueue         by viewModel.batchQueue.collectAsStateWithLifecycle()
+    val batchEditIndex     by viewModel.batchEditIndex.collectAsStateWithLifecycle()
+    val batchGlobalEdits   by viewModel.batchGlobalEdits.collectAsStateWithLifecycle()
+
     val uri: Uri?           = lastMedia?.uri
     val captureTimestamp    = lastMedia?.date ?: 0L
+    val isBatchMode         = batchQueue.isNotEmpty()
+    val batchTotal          = batchQueue.size
 
-    var brightness by remember(uri) { mutableFloatStateOf(0f) }
-    var saturation by remember(uri) { mutableFloatStateOf(1f) }
-    var contrast   by remember(uri) { mutableFloatStateOf(1f) }
+    var brightness by remember(uri) { mutableFloatStateOf(batchGlobalEdits?.first  ?: 0f) }
+    var saturation by remember(uri) { mutableFloatStateOf(batchGlobalEdits?.second ?: 1f) }
+    var contrast   by remember(uri) { mutableFloatStateOf(batchGlobalEdits?.third  ?: 1f) }
+    var applyToAll by remember { mutableStateOf(batchGlobalEdits != null) }
 
     var sourceBitmap by remember(uri) { mutableStateOf<Bitmap?>(null) }
     var isLoading    by remember(uri) { mutableStateOf(true) }
 
     // Load bitmap on IO thread, applying EXIF orientation so portrait shots display upright.
-    // CameraX writes rotation into EXIF metadata rather than rotating pixels; BitmapFactory
-    // ignores that tag, so we must apply it manually.
     LaunchedEffect(uri) {
         if (uri == null) return@LaunchedEffect
         isLoading = true
@@ -146,7 +156,7 @@ fun PhotoEditScreen(
         isLoading = false
     }
 
-    // Build ColorFilter for live preview (applied in Compose — no bitmap copy needed)
+    // Build ColorFilter for live preview
     val colorFilter = remember(brightness, saturation, contrast) {
         ColorFilter.colorMatrix(
             androidx.compose.ui.graphics.ColorMatrix(
@@ -155,32 +165,13 @@ fun PhotoEditScreen(
         )
     }
 
-    // Session expired dialog
-    if (certificationState is CertificationState.SessionExpired) {
-        AlertDialog(
-            onDismissRequest = { viewModel.resetCertificationState(); onNavigateBack() },
-            containerColor = Color(0xFF1E1E1E),
-            title = {
-                Text("세션 만료", color = Color(0xFFFF6B6B), fontWeight = FontWeight.Bold, fontSize = 17.sp)
-            },
-            text = {
-                Text(
-                    "세션이 오래되었습니다.\n다시 촬영해주세요.",
-                    color = Color(0xFFDDDDDD),
-                    fontSize = 14.sp
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = { viewModel.resetCertificationState(); onNavigateBack() }) {
-                    Text("다시 촬영", color = AccentGreen, fontWeight = FontWeight.SemiBold)
-                }
-            }
-        )
-    }
+    // Tracks the edit values to pass to onCertDone when applyToAll is on
+    var pendingSavedEdits: Triple<Float, Float, Float>? by remember { mutableStateOf(null) }
 
     LaunchedEffect(certificationState) {
         if (certificationState is CertificationState.Done) {
-            onNavigateToNickname()
+            onCertDone(certificationState as CertificationState.Done, pendingSavedEdits)
+            pendingSavedEdits = null
         }
     }
 
@@ -209,17 +200,27 @@ fun PhotoEditScreen(
                     )
                 }
                 Spacer(Modifier.weight(1f))
-                Text(
-                    text = "사진 편집",
-                    color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
+                // Title: show batch progress in batch mode
+                if (isBatchMode) {
+                    Text(
+                        text = "사진 편집  ${batchEditIndex + 1} / $batchTotal",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                } else {
+                    Text(
+                        text = "사진 편집",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
                 Spacer(Modifier.weight(1f))
                 Spacer(Modifier.width(48.dp))
             }
 
-            // Preview — ColorFilter applied directly in Compose, no bitmap copy
+            // Preview
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -277,6 +278,33 @@ fun PhotoEditScreen(
                     enabled = !isProcessing,
                     onValueChange = { contrast = it }
                 )
+
+                // "전체 적용" toggle — only visible when there are multiple photos in the batch
+                if (isBatchMode && batchTotal > 1) {
+                    Spacer(Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            "이 보정값을 다음 사진에도 적용",
+                            color = if (!isProcessing) Color.White else Color.Gray,
+                            fontSize = 13.sp
+                        )
+                        Switch(
+                            checked = applyToAll,
+                            onCheckedChange = { applyToAll = it },
+                            enabled = !isProcessing,
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.Black,
+                                checkedTrackColor = AccentGreen,
+                                uncheckedThumbColor = Color.Gray,
+                                uncheckedTrackColor = Color(0xFF333333)
+                            )
+                        )
+                    }
+                }
             }
 
             // Bottom buttons
@@ -301,6 +329,9 @@ fun PhotoEditScreen(
                         if (isProcessing || uri == null) return@Button
                         val src = sourceBitmap ?: return@Button
                         val filtered = applyColorMatrix(src, buildColorMatrix(brightness, saturation, contrast))
+                        if (applyToAll && isBatchMode) {
+                            pendingSavedEdits = Triple(brightness, saturation, contrast)
+                        }
                         viewModel.certifyAndSave(uri, filtered, captureTimestamp)
                     },
                     modifier = Modifier.weight(1f),
@@ -317,7 +348,8 @@ fun PhotoEditScreen(
                             strokeWidth = 2.dp
                         )
                     } else {
-                        Text("완료", fontWeight = FontWeight.Bold)
+                        val label = if (isBatchMode && batchEditIndex < batchTotal - 1) "완료 →" else "완료"
+                        Text(label, fontWeight = FontWeight.Bold)
                     }
                 }
             }

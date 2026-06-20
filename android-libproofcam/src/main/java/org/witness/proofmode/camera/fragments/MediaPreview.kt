@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.CircularProgressIndicator
@@ -42,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -60,8 +62,12 @@ import org.witness.proofmode.camera.utils.share
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MediaPreview(viewModel: CameraViewModel, modifier: Modifier = Modifier,
-                 onNavigateBack: (() -> Unit)? = null){
+fun MediaPreview(
+    viewModel: CameraViewModel,
+    modifier: Modifier = Modifier,
+    onNavigateBack: (() -> Unit)? = null,
+    onNavigateToBatchSelect: (() -> Unit)? = null
+) {
     val mediaItems by viewModel.mediaFiles.collectAsStateWithLifecycle()
     val pagerState = rememberPagerState(pageCount = {
         mediaItems.size
@@ -104,6 +110,12 @@ fun MediaPreview(viewModel: CameraViewModel, modifier: Modifier = Modifier,
 
                 }) {
                     Icon(Icons.Outlined.Delete, contentDescription = "Share media", tint = Color.White)
+                }
+
+                if (onNavigateToBatchSelect != null) {
+                    TextButton(onClick = onNavigateToBatchSelect) {
+                        Text("여러 장 인증", color = AccentGreen, fontSize = 12.sp)
+                    }
                 }
             }
         }

@@ -60,23 +60,29 @@ fun NicknameInputScreen(
     onConfirmed: () -> Unit,
     onNavigateBack: () -> Unit
 ) {
-    val certState    by viewModel.certificationState.collectAsStateWithLifecycle()
-    val uploadState  by viewModel.uploadState.collectAsStateWithLifecycle()
+    val certState      by viewModel.certificationState.collectAsStateWithLifecycle()
+    val uploadState    by viewModel.uploadState.collectAsStateWithLifecycle()
     val watermarkState by viewModel.watermarkState.collectAsStateWithLifecycle()
-    val doneState    = certState as? CertificationState.Done
+    val batchQueue     by viewModel.batchQueue.collectAsStateWithLifecycle()
+    val batchCertItems by viewModel.batchCertItems.collectAsStateWithLifecycle()
+    val batchUploadState by viewModel.batchUploadState.collectAsStateWithLifecycle()
 
-    var nickname     by remember { mutableStateOf("") }
-    var isConfirmed  by remember { mutableStateOf(false) }
-    val recentNames  = remember { viewModel.getRecentNames() }
+    val isBatchMode = batchQueue.isNotEmpty()
+    val doneState   = certState as? CertificationState.Done
 
-    val isUploading      = uploadState is UploadState.Uploading
+    var nickname    by remember { mutableStateOf("") }
+    var isConfirmed by remember { mutableStateOf(false) }
+    val recentNames = remember { viewModel.getRecentNames() }
+
     val isWatermarkReady = watermarkState is WatermarkState.Ready
-    val isLocked         = isConfirmed || isUploading
+    val isSingleUploading = uploadState is UploadState.Uploading
+    val isBatchRunning    = batchUploadState is BatchUploadState.Running
+    val isUploading       = isSingleUploading || isBatchRunning
+    val isLocked          = isConfirmed || isUploading
 
-    // Start watermark generation as soon as this screen opens so hashes are
-    // ready before the user taps 확정.
+    // Single mode: start watermark generation as soon as this screen opens
     LaunchedEffect(doneState?.authId) {
-        if (doneState != null && watermarkState is WatermarkState.Idle) {
+        if (!isBatchMode && doneState != null && watermarkState is WatermarkState.Idle) {
             viewModel.generateWatermark(doneState.authId)
         }
     }
@@ -84,41 +90,40 @@ fun NicknameInputScreen(
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusRequester     = remember { FocusRequester() }
 
-    // Auto-navigate on upload success
+    // Single mode: navigate on upload success
     LaunchedEffect(uploadState) {
-        if (uploadState is UploadState.Success) {
+        if (!isBatchMode && uploadState is UploadState.Success) {
+            onConfirmed()
+        }
+    }
+
+    // Batch mode: navigate when batch upload finishes
+    LaunchedEffect(batchUploadState) {
+        if (isBatchMode && batchUploadState is BatchUploadState.Finished) {
             onConfirmed()
         }
     }
 
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
-    // Error dialog on upload failure
-    if (uploadState is UploadState.Failure) {
+    // Single mode: error dialog on upload failure
+    if (!isBatchMode && uploadState is UploadState.Failure) {
         val failure = uploadState as UploadState.Failure
         AlertDialog(
             onDismissRequest = {},
             containerColor = Color(0xFF1E1E1E),
-            title = {
-                Text("전송 실패", color = Color(0xFFFF6B6B), fontWeight = FontWeight.Bold)
-            },
+            title = { Text("전송 실패", color = Color(0xFFFF6B6B), fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        failure.error.take(120),
-                        color = Color(0xFFDDDDDD),
-                        fontSize = 13.sp
-                    )
+                    Text(failure.error.take(120), color = Color(0xFFDDDDDD), fontSize = 13.sp)
                     Text(
                         "재시도하거나, 지금은 건너뛰고 나중에 다시 시도할 수 있습니다.",
-                        color = Color(0xFF888888),
-                        fontSize = 12.sp
+                        color = Color(0xFF888888), fontSize = 12.sp
                     )
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
-                    // Retry with same data
                     doneState?.let {
                         viewModel.startCertificationUpload(
                             authId              = it.authId,
@@ -169,16 +174,29 @@ fun NicknameInputScreen(
             Spacer(Modifier.width(48.dp))
         }
 
-        // Auth summary card
-        if (doneState != null) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp)
-                    .background(Color(0xFF1A1A1A), RoundedCornerShape(8.dp))
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
+        // Auth summary card — single mode shows auth ID, batch mode shows photo count
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp)
+                .background(Color(0xFF1A1A1A), RoundedCornerShape(8.dp))
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            if (isBatchMode) {
+                Text("인증 예정", color = Color(0xFF888888), fontSize = 11.sp)
+                Text(
+                    "${batchCertItems.size}장 일괄 인증",
+                    color = AccentGreen,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "이번 인증으로 ${batchCertItems.size}건이 차감됩니다 · 월 무료 제공 5건",
+                    color = Color(0xFF888888),
+                    fontSize = 12.sp
+                )
+            } else if (doneState != null) {
                 Text("인증 ID", color = Color(0xFF888888), fontSize = 11.sp)
                 Text(
                     doneState.authId,
@@ -252,8 +270,28 @@ fun NicknameInputScreen(
 
         Spacer(Modifier.weight(1f))
 
-        // Watermark generation progress (hashes computed after watermark is ready)
-        if (!isWatermarkReady && !isLocked) {
+        // Watermark / upload progress indicators
+        if (isUploading) {
+            Column(
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(bottom = 6.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(14.dp),
+                    color = AccentGreen,
+                    strokeWidth = 2.dp
+                )
+                val progressText = if (isBatchMode) {
+                    val running = batchUploadState as? BatchUploadState.Running
+                    if (running != null) "${running.completed} / ${running.total}장 전송 중…"
+                    else "전송 준비 중…"
+                } else "전송 중…"
+                Text(progressText, color = Color(0xFF888888), fontSize = 12.sp)
+            }
+        } else if (!isBatchMode && !isWatermarkReady && !isLocked) {
             Row(
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
@@ -269,8 +307,7 @@ fun NicknameInputScreen(
                 Text(
                     if (watermarkState is WatermarkState.Failed) "워터마크 생성 실패 — 재시도 중"
                     else "인증 준비 중…",
-                    color = Color(0xFF888888),
-                    fontSize = 12.sp
+                    color = Color(0xFF888888), fontSize = 12.sp
                 )
             }
         }
@@ -285,29 +322,40 @@ fun NicknameInputScreen(
                 .padding(bottom = 8.dp)
         )
 
-        // Confirm / uploading button
+        // Confirm button
+        val buttonEnabled = nickname.isNotBlank() && !isLocked &&
+                if (isBatchMode) true else isWatermarkReady
+
         Button(
             onClick = {
                 if (nickname.isBlank() || isLocked) return@Button
                 keyboardController?.hide()
                 isConfirmed = true
-                doneState?.let {
-                    viewModel.saveNicknameForAuth(it.authId, nickname.trim())
-                    viewModel.startCertificationUpload(
-                        authId              = it.authId,
-                        sha256Hash          = it.sha256Hash,
-                        pHash               = it.pHash,
-                        captureTimestampMs  = it.captureTimestampMs,
-                        nickname            = nickname.trim(),
-                        lofiThumbnailBase64 = it.lofiThumbnailBase64,
-                        cropHashes          = it.cropHashes
-                    )
+                val trimmed = nickname.trim()
+                if (isBatchMode) {
+                    batchCertItems.firstOrNull()?.let {
+                        viewModel.saveNicknameForAuth(it.certDone.authId, trimmed)
+                    }
+                    viewModel.startBatchUpload(trimmed)
+                } else {
+                    doneState?.let {
+                        viewModel.saveNicknameForAuth(it.authId, trimmed)
+                        viewModel.startCertificationUpload(
+                            authId              = it.authId,
+                            sha256Hash          = it.sha256Hash,
+                            pHash               = it.pHash,
+                            captureTimestampMs  = it.captureTimestampMs,
+                            nickname            = trimmed,
+                            lofiThumbnailBase64 = it.lofiThumbnailBase64,
+                            cropHashes          = it.cropHashes
+                        )
+                    }
                 }
             },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 16.dp),
-            enabled = nickname.isNotBlank() && !isLocked && isWatermarkReady,
+            enabled = buttonEnabled,
             colors = ButtonDefaults.buttonColors(
                 containerColor          = AccentGreen,
                 contentColor            = Color.Black,
@@ -322,9 +370,16 @@ fun NicknameInputScreen(
                     strokeWidth = 2.dp
                 )
                 Spacer(Modifier.width(10.dp))
-                Text("전송 중…", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text(
+                    if (isBatchMode) "일괄 전송 중…" else "전송 중…",
+                    fontWeight = FontWeight.Bold, fontSize = 15.sp
+                )
             } else {
-                Text("확정 (이후 수정 불가)", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                val label = if (isBatchMode)
+                    "${batchCertItems.size}장 인증 확정 (이후 수정 불가)"
+                else
+                    "확정 (이후 수정 불가)"
+                Text(label, fontWeight = FontWeight.Bold, fontSize = 15.sp)
             }
         }
     }

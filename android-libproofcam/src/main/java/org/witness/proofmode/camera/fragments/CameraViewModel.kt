@@ -58,6 +58,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.witness.proofmode.ProofMode
 import org.witness.proofmode.camera.CameraActivity
 import org.witness.proofmode.camera.adapter.Media
@@ -72,15 +73,13 @@ import org.witness.proofmode.service.MediaWatcher.Companion.getInstance
 import java.io.File
 import java.io.FileOutputStream
 import timber.log.Timber
-import java.io.FileNotFoundException
 import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
 
-/** Captures older than this threshold are rejected before hashing to prevent stale certifications. */
-private const val SESSION_MAX_AGE_MS = 10L * 60 * 1000L
+const val MAX_BATCH_SIZE = 10
 
 /** State machine for the post-edit certification pipeline. */
 sealed class CertificationState {
@@ -102,8 +101,25 @@ sealed class CertificationState {
         val lofiThumbnailBase64: String? = null,
         val cropHashes: List<String>? = null
     ) : CertificationState()
-    /** The capture file is older than [SESSION_MAX_AGE_MS]; redirect user to camera. */
-    object SessionExpired : CertificationState()
+}
+
+/**
+ * Holds certification data + upload result for one photo in a batch.
+ * [watermarkBitmap] and [shareUri] are populated by [CameraViewModel.startBatchUpload].
+ */
+data class BatchItem(
+    val media: org.witness.proofmode.camera.adapter.Media,
+    val certDone: CertificationState.Done,
+    val watermarkBitmap: android.graphics.Bitmap? = null,
+    val shareUri: android.net.Uri? = null,
+    val uploadSuccess: Boolean = false,
+    val uploadError: String? = null
+)
+
+sealed class BatchUploadState {
+    object Idle : BatchUploadState()
+    data class Running(val completed: Int, val total: Int) : BatchUploadState()
+    data class Finished(val items: List<BatchItem>) : BatchUploadState()
 }
 
 /** State machine for the watermark composition step. */
@@ -144,6 +160,24 @@ class CameraViewModel(private val activity: CameraActivity, private val app: App
     private val _uploadState = MutableStateFlow<UploadState>(UploadState.Idle)
     val uploadState: StateFlow<UploadState> = _uploadState
 
+    // ── Batch certification ───────────────────────────────────────────────────
+    private val _batchQueue = MutableStateFlow<List<Media>>(emptyList())
+    val batchQueue: StateFlow<List<Media>> = _batchQueue
+
+    private val _batchEditIndex = MutableStateFlow(0)
+    val batchEditIndex: StateFlow<Int> = _batchEditIndex
+
+    private val _batchCertItems = MutableStateFlow<List<BatchItem>>(emptyList())
+    val batchCertItems: StateFlow<List<BatchItem>> = _batchCertItems
+
+    private val _batchUploadState = MutableStateFlow<BatchUploadState>(BatchUploadState.Idle)
+    val batchUploadState: StateFlow<BatchUploadState> = _batchUploadState
+
+    /** When "전체 적용" is active, stores (brightness, saturation, contrast) to pre-fill next photo. */
+    private val _batchGlobalEdits = MutableStateFlow<Triple<Float, Float, Float>?>(null)
+    val batchGlobalEdits: StateFlow<Triple<Float, Float, Float>?> = _batchGlobalEdits
+    // ─────────────────────────────────────────────────────────────────────────
+
     /** Watermarked JPEG bytes held until registerCropHashes succeeds, then cleared. */
     private var _wmBytesForCropReg: ByteArray? = null
 
@@ -182,13 +216,24 @@ class CameraViewModel(private val activity: CameraActivity, private val app: App
 
     private fun loadMediaFiles() {
         viewModelScope.launch {
+            // Delete uncertified captures older than 3 days before loading the list.
+            withContext(Dispatchers.IO) {
+                val cutoffMs = System.currentTimeMillis() - 3L * 24L * 60L * 60L * 1000L
+                capturesDir.listFiles()?.forEach { file ->
+                    if (file.isFile && file.lastModified() < cutoffMs) {
+                        file.delete()
+                    }
+                }
+            }
             getMediaFlow(app.applicationContext, capturesDir)
-                .collect{ media->
+                .collect { media ->
                     _thumbPreviewUri.value = media.firstOrNull()
                     _mediaFiles.value = media
-                    // _lastCapturedMedia is intentionally NOT updated here.
-                    // It must only be set when a new photo/video is actually taken
-                    // so that session expiry is measured from capture time, not app open time.
+                    // On the first load after an app restart, restore _lastCapturedMedia
+                    // from the most recent file so the user can certify pending photos.
+                    if (_lastCapturedMedia.value == null) {
+                        _lastCapturedMedia.value = media.firstOrNull()
+                    }
                 }
         }
     }
@@ -537,7 +582,9 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
 
         val metadata = Metadata().apply { isReversedHorizontal = false }
 
-        val outputFile = File(capturesDir, "${System.currentTimeMillis()}.jpg")
+        // Record timestamp at shutter-press, before the async write completes.
+        val capturedTime = System.currentTimeMillis()
+        val outputFile = File(capturesDir, "${capturedTime}.jpg")
         val outputOptions = OutputFileOptions.Builder(outputFile)
             .setMetadata(metadata)
             .build()
@@ -550,7 +597,6 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
             object : OnImageSavedCallback {
                 override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
                     val savedUri = outputFileResults.savedUri ?: Uri.fromFile(outputFile)
-                    val capturedTime = System.currentTimeMillis()
                     val newMedia = Media(savedUri, false, capturedTime)
                     _thumbPreviewUri.value = newMedia
                     _lastCapturedMedia.value = newMedia
@@ -587,9 +633,6 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
     /**
      * On-device certification pipeline called when the user taps "완료" in PhotoEditScreen:
      *
-     * 0. Session freshness gate — reject captures older than [SESSION_MAX_AGE_MS] (10 min).
-     *    Read from the actual file's lastModified() so the check cannot be bypassed by
-     *    keeping the app open with a stale ViewModel state.
      * 1. Compress [bitmap] to JPEG bytes
      * 2. SHA-256 of those bytes
      * 3. DCT perceptual hash (pHash) via ru.avicorp:phashcalc (avbase/pHashCalc)
@@ -607,21 +650,6 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             _certificationState.value = CertificationState.Processing
             _watermarkState.value = WatermarkState.Idle
-
-            // 0. Session freshness gate
-            //    Prefer file metadata over the passed-in timestamp so that a long-lived
-            //    app session cannot bypass this check.
-            val fileAgeMs = try {
-                System.currentTimeMillis() - uri.toFile().lastModified()
-            } catch (_: Exception) {
-                System.currentTimeMillis() - captureTimestampMs
-            }
-            if (fileAgeMs > SESSION_MAX_AGE_MS) {
-                Timber.w("Session expired: capture is %d ms old (limit %d ms)", fileAgeMs, SESSION_MAX_AGE_MS)
-                _lastCapturedMedia.value = null
-                _certificationState.value = CertificationState.SessionExpired
-                return@launch
-            }
 
             // 1. Compress to JPEG bytes (quality=95, reused for disk write)
             val imageBytes = java.io.ByteArrayOutputStream().also { baos ->
@@ -763,13 +791,13 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
             val service = CertificationService()
             _uploadState.value = when (val result = service.uploadMetadata(request)) {
                 is CertificationService.MetadataUploadResult.Success -> {
-                    // Overwrite Android-computed hashes with server Python hashes so
-                    // verification uses the same algorithm as registration → dist ≈ 0.
                     val wmBytes = _wmBytesForCropReg
                     if (wmBytes != null) {
                         service.registerCropHashes(authId, wmBytes)
                         _wmBytesForCropReg = null
                     }
+                    // Delete the session photo now that it is permanently registered.
+                    deleteMedia(_lastCapturedMedia.value)
                     UploadState.Success(result.authId)
                 }
                 is CertificationService.MetadataUploadResult.Failure ->
@@ -803,6 +831,140 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
             SharedPrefsManager.KEY_RECENT_NAMES,
             updated.joinToString("|")
         )
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // BATCH CERTIFICATION
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /** Initialises a new batch with [selected] session photos (max [MAX_BATCH_SIZE]). */
+    fun initBatch(selected: List<Media>) {
+        _batchQueue.value = selected.take(MAX_BATCH_SIZE)
+        _batchEditIndex.value = 0
+        _batchCertItems.value = emptyList()
+        _batchGlobalEdits.value = null
+        _batchUploadState.value = BatchUploadState.Idle
+        _certificationState.value = CertificationState.Idle
+        _watermarkState.value = WatermarkState.Idle
+        _lastCapturedMedia.value = _batchQueue.value.firstOrNull()
+    }
+
+    /**
+     * Records the certified result for the current batch photo, then advances to the next.
+     * Call from the EDIT screen's onCertDone callback.
+     * @param certDone  The Done state produced by [certifyAndSave].
+     * @param savedEdits  Non-null when "전체 적용" is enabled — carried to the next photo's sliders.
+     */
+    fun acceptBatchCertItem(
+        certDone: CertificationState.Done,
+        savedEdits: Triple<Float, Float, Float>? = null
+    ) {
+        val media = _lastCapturedMedia.value ?: return
+        _batchCertItems.value = _batchCertItems.value + BatchItem(media, certDone)
+        if (savedEdits != null) _batchGlobalEdits.value = savedEdits
+
+        val nextIndex = _batchEditIndex.value + 1
+        _batchEditIndex.value = nextIndex
+        if (nextIndex < _batchQueue.value.size) {
+            _lastCapturedMedia.value = _batchQueue.value[nextIndex]
+            _certificationState.value = CertificationState.Idle
+            _watermarkState.value = WatermarkState.Idle
+        } else {
+            _certificationState.value = CertificationState.Idle
+            _watermarkState.value = WatermarkState.Idle
+        }
+    }
+
+    /**
+     * Generates watermarks, computes hashes, and uploads all certified batch items sequentially.
+     * Drives [batchUploadState].
+     */
+    fun startBatchUpload(nickname: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val items = _batchCertItems.value.toList()
+            _batchUploadState.value = BatchUploadState.Running(0, items.size)
+            val results = mutableListOf<BatchItem>()
+
+            for ((idx, item) in items.withIndex()) {
+                var watermarkBitmap: android.graphics.Bitmap? = null
+                var shareUri: android.net.Uri? = null
+                var uploadSuccess = false
+                var uploadError: String? = null
+
+                try {
+                    val photo = android.graphics.BitmapFactory.decodeFile(item.media.uri.toFile().absolutePath)
+                        ?: throw Exception("이미지 디코딩 실패")
+                    val watermarked = WatermarkComposer.compose(photo, item.certDone.authId)
+                    photo.recycle()
+                    watermarkBitmap = watermarked
+
+                    val wmBytes = java.io.ByteArrayOutputStream().also { baos ->
+                        watermarked.compress(android.graphics.Bitmap.CompressFormat.JPEG, 95, baos)
+                    }.toByteArray()
+
+                    val tempFile = java.io.File(app.cacheDir, "wm_share_${item.certDone.authId}.jpg")
+                    tempFile.writeBytes(wmBytes)
+                    shareUri = androidx.core.content.FileProvider.getUriForFile(
+                        app, "${app.packageName}.provider", tempFile
+                    )
+
+                    val service = org.witness.proofmode.camera.network.CertificationService()
+                    val sha256     = service.calculateSha256(wmBytes)
+                    val pHash      = service.calculatePHash(wmBytes)
+                    val cropHashes = service.calculateBlockHashes(wmBytes)
+
+                    val request = org.witness.proofmode.camera.network.CertificationService.MetadataUploadRequest(
+                        authId              = item.certDone.authId,
+                        sha256Hash          = sha256,
+                        pHash               = pHash,
+                        captureTimestampMs  = item.certDone.captureTimestampMs,
+                        nickname            = nickname,
+                        lofiThumbnailBase64 = item.certDone.lofiThumbnailBase64,
+                        cropHashes          = cropHashes
+                    )
+
+                    when (val result = service.uploadMetadata(request)) {
+                        is org.witness.proofmode.camera.network.CertificationService.MetadataUploadResult.Success -> {
+                            service.registerCropHashes(item.certDone.authId, wmBytes)
+                            val segment = item.media.uri.lastPathSegment
+                            segment?.let { name ->
+                                if (File(capturesDir, name).delete()) {
+                                    val currentList = _mediaFiles.value.toMutableList()
+                                    currentList.remove(item.media)
+                                    _mediaFiles.value = currentList
+                                }
+                            }
+                            uploadSuccess = true
+                        }
+                        is org.witness.proofmode.camera.network.CertificationService.MetadataUploadResult.Failure ->
+                            uploadError = result.error
+                    }
+                } catch (e: Exception) {
+                    Timber.e(e, "Batch upload failed for authId=%s", item.certDone.authId)
+                    uploadError = e.message ?: "알 수 없는 오류"
+                }
+
+                results.add(item.copy(
+                    watermarkBitmap = watermarkBitmap,
+                    shareUri        = shareUri,
+                    uploadSuccess   = uploadSuccess,
+                    uploadError     = uploadError
+                ))
+                _batchUploadState.value = BatchUploadState.Running(idx + 1, items.size)
+            }
+
+            _batchUploadState.value = BatchUploadState.Finished(results)
+            _lastCapturedMedia.value = _mediaFiles.value.firstOrNull()
+        }
+    }
+
+    /** Clears all batch state. Call when the user exits the batch flow. */
+    fun resetBatch() {
+        _batchQueue.value = emptyList()
+        _batchEditIndex.value = 0
+        _batchCertItems.value = emptyList()
+        _batchGlobalEdits.value = null
+        _batchUploadState.value = BatchUploadState.Idle
     }
 
     companion object {

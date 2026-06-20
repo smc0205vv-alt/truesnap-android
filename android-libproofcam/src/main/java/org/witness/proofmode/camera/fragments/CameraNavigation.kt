@@ -43,8 +43,9 @@ fun CameraNavigation(
                 viewModel.unbindAll()
                 viewModel.bindUseCasesForVideo(lifecycleOwner)
             }
-            CameraDestinations.PREVIEW -> {}
-            CameraDestinations.EDIT    -> {}
+            CameraDestinations.PREVIEW      -> {}
+            CameraDestinations.EDIT         -> {}
+            CameraDestinations.BATCH_SELECT -> {}
         }
     }
 
@@ -73,16 +74,16 @@ fun CameraNavigation(
             exitTransition  = { fadeOut() }
         ) {
             VideoCamera(
-                cameraViewModel        = viewModel,
-                lifecycleOwner         = lifecycleOwner,
+                cameraViewModel         = viewModel,
+                lifecycleOwner          = lifecycleOwner,
                 onNavigateToPhotoCamera = {
                     navController.navigate(CameraDestinations.PHOTO) {
                         popUpTo(CameraDestinations.VIDEO) { inclusive = true }
                     }
                 },
-                onNavigateBack  = { navController.popBackStack() },
+                onNavigateBack      = { navController.popBackStack() },
                 onNavigateToPreview = { navController.navigate(CameraDestinations.PREVIEW) },
-                onClose         = onClosed
+                onClose             = onClosed
             )
         }
 
@@ -91,9 +92,27 @@ fun CameraNavigation(
             exitTransition  = { fadeOut() }
         ) {
             MediaPreview(
-                viewModel       = viewModel,
-                modifier        = Modifier.fillMaxSize(),
-                onNavigateBack  = { navController.popBackStack() }
+                viewModel               = viewModel,
+                modifier                = Modifier.fillMaxSize(),
+                onNavigateBack          = { navController.popBackStack() },
+                onNavigateToBatchSelect = {
+                    navController.navigate(CameraDestinations.BATCH_SELECT)
+                }
+            )
+        }
+
+        composable(CameraDestinations.BATCH_SELECT,
+            enterTransition = { fadeIn() },
+            exitTransition  = { fadeOut() }
+        ) {
+            BatchSelectScreen(
+                viewModel      = viewModel,
+                onStartBatch   = {
+                    navController.navigate(CameraDestinations.EDIT) {
+                        popUpTo(CameraDestinations.BATCH_SELECT) { inclusive = true }
+                    }
+                },
+                onNavigateBack = { navController.popBackStack() }
             )
         }
 
@@ -102,11 +121,25 @@ fun CameraNavigation(
             exitTransition  = { fadeOut() }
         ) {
             PhotoEditScreen(
-                viewModel             = viewModel,
-                onNavigateBack        = { navController.popBackStack() },
-                onNavigateToNickname  = {
-                    navController.navigate(CameraDestinations.NICKNAME) {
-                        popUpTo(CameraDestinations.EDIT) { inclusive = true }
+                viewModel      = viewModel,
+                onNavigateBack = { navController.popBackStack() },
+                onCertDone     = { done, savedEdits ->
+                    val isBatch = viewModel.batchQueue.value.isNotEmpty()
+                    if (isBatch) {
+                        val isLast =
+                            viewModel.batchEditIndex.value + 1 >= viewModel.batchQueue.value.size
+                        viewModel.acceptBatchCertItem(done, savedEdits)
+                        if (isLast) {
+                            navController.navigate(CameraDestinations.NICKNAME) {
+                                popUpTo(CameraDestinations.EDIT) { inclusive = true }
+                            }
+                        }
+                        // If not last, PhotoEditScreen auto-advances to next photo via
+                        // LaunchedEffect(uri) detecting the _lastCapturedMedia change.
+                    } else {
+                        navController.navigate(CameraDestinations.NICKNAME) {
+                            popUpTo(CameraDestinations.EDIT) { inclusive = true }
+                        }
                     }
                 }
             )
@@ -119,16 +152,23 @@ fun CameraNavigation(
             NicknameInputScreen(
                 viewModel      = viewModel,
                 onConfirmed    = {
-                    // Keep certificationState.Done alive — ShareScreen reads it
-                    viewModel.resetUploadState()
-                    navController.navigate(CameraDestinations.SHARE) {
-                        popUpTo(CameraDestinations.NICKNAME) { inclusive = true }
+                    val isBatch = viewModel.batchQueue.value.isNotEmpty()
+                    if (isBatch) {
+                        navController.navigate(CameraDestinations.BATCH_SHARE) {
+                            popUpTo(CameraDestinations.NICKNAME) { inclusive = true }
+                        }
+                    } else {
+                        viewModel.resetUploadState()
+                        navController.navigate(CameraDestinations.SHARE) {
+                            popUpTo(CameraDestinations.NICKNAME) { inclusive = true }
+                        }
                     }
                 },
                 onNavigateBack = {
                     viewModel.resetCertificationState()
                     viewModel.resetUploadState()
                     viewModel.resetWatermarkState()
+                    viewModel.resetBatch()
                     navController.navigate(CameraDestinations.PHOTO) {
                         popUpTo(0) { inclusive = true }
                     }
@@ -150,14 +190,32 @@ fun CameraNavigation(
                 }
             )
         }
+
+        composable(CameraDestinations.BATCH_SHARE,
+            enterTransition = { fadeIn() },
+            exitTransition  = { fadeOut() }
+        ) {
+            BatchShareScreen(
+                viewModel = viewModel,
+                onDone    = {
+                    viewModel.resetBatch()
+                    viewModel.resetCertificationState()
+                    viewModel.resetUploadState()
+                    viewModel.resetWatermarkState()
+                    onClosed()
+                }
+            )
+        }
     }
 }
 
 object CameraDestinations {
-    const val PHOTO    = "photo"
-    const val VIDEO    = "video"
-    const val PREVIEW  = "preview"
-    const val EDIT     = "edit"
-    const val NICKNAME = "nickname"
-    const val SHARE    = "share"
+    const val PHOTO        = "photo"
+    const val VIDEO        = "video"
+    const val PREVIEW      = "preview"
+    const val EDIT         = "edit"
+    const val NICKNAME     = "nickname"
+    const val SHARE        = "share"
+    const val BATCH_SELECT = "batch_select"
+    const val BATCH_SHARE  = "batch_share"
 }

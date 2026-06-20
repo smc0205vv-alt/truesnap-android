@@ -223,7 +223,7 @@ fun CertificationShareScreen(
 
 // ── MediaStore helper ─────────────────────────────────────────────────────────
 
-private fun saveToGallery(context: Context, bitmap: Bitmap, authId: String): String {
+internal fun saveToGallery(context: Context, bitmap: Bitmap, authId: String): String {
     val filename = "truesnap_$authId.jpg"
     val values = ContentValues().apply {
         put(MediaStore.Images.Media.DISPLAY_NAME, filename)
