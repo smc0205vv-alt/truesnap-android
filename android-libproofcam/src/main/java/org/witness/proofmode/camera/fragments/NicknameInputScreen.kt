@@ -197,11 +197,6 @@ fun NicknameInputScreen(
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold
                 )
-                Text(
-                    "이번 인증으로 ${batchCertItems.size}건이 차감됩니다 · 월 무료 제공 5건",
-                    color = Color(0xFF888888),
-                    fontSize = 12.sp
-                )
             } else if (doneState != null) {
                 Text("인증 ID", color = Color(0xFF888888), fontSize = 11.sp)
                 Text(

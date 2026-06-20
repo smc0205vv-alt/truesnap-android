@@ -191,16 +191,6 @@ fun BatchSelectScreen(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // Monthly quota notice
-            if (selected.isNotEmpty()) {
-                Text(
-                    "이번 인증으로 ${selected.size}건이 차감됩니다 · 월 무료 제공 5건",
-                    color = Color(0xFF888888),
-                    fontSize = 12.sp,
-                    modifier = Modifier.align(Alignment.CenterHorizontally)
-                )
-            }
-
             Button(
                 onClick = {
                     val orderedList = selected.toList()
