@@ -43,9 +43,9 @@ fun CameraNavigation(
                 viewModel.unbindAll()
                 viewModel.bindUseCasesForVideo(lifecycleOwner)
             }
-            CameraDestinations.PREVIEW      -> {}
-            CameraDestinations.EDIT         -> {}
-            CameraDestinations.BATCH_SELECT -> {}
+            CameraDestinations.PREVIEW         -> {}
+            CameraDestinations.SESSION_SELECT  -> {}
+            CameraDestinations.EDIT            -> {}
         }
     }
 
@@ -64,7 +64,8 @@ fun CameraNavigation(
                         popUpTo(CameraDestinations.PHOTO) { inclusive = true }
                     }
                 },
-                onNavigateToEdit     = { navController.navigate(CameraDestinations.EDIT) },
+                // After shutter: go to session preview instead of directly to edit
+                onNavigateToEdit     = { navController.navigate(CameraDestinations.SESSION_SELECT) },
                 onClose              = onClosed
             )
         }
@@ -95,24 +96,28 @@ fun CameraNavigation(
                 viewModel               = viewModel,
                 modifier                = Modifier.fillMaxSize(),
                 onNavigateBack          = { navController.popBackStack() },
+                // "여러 장 인증" in preview also leads to session select
                 onNavigateToBatchSelect = {
-                    navController.navigate(CameraDestinations.BATCH_SELECT)
+                    navController.navigate(CameraDestinations.SESSION_SELECT)
                 }
             )
         }
 
-        composable(CameraDestinations.BATCH_SELECT,
+        composable(CameraDestinations.SESSION_SELECT,
             enterTransition = { fadeIn() },
             exitTransition  = { fadeOut() }
         ) {
-            BatchSelectScreen(
-                viewModel      = viewModel,
-                onStartBatch   = {
-                    navController.navigate(CameraDestinations.EDIT) {
-                        popUpTo(CameraDestinations.BATCH_SELECT) { inclusive = true }
-                    }
+            SessionSelectScreen(
+                viewModel            = viewModel,
+                // Camera FAB: clear last capture so LaunchedEffect doesn't re-fire, go back to camera
+                onNavigateToCamera   = {
+                    viewModel.clearLastCapturedMedia()
+                    navController.popBackStack()
                 },
-                onNavigateBack = { navController.popBackStack() }
+                // "인증하기": start batch, navigate to EDIT (keep SESSION_SELECT on stack so X goes back here)
+                onStartCertification = {
+                    navController.navigate(CameraDestinations.EDIT)
+                }
             )
         }
 
@@ -122,17 +127,12 @@ fun CameraNavigation(
         ) {
             PhotoEditScreen(
                 viewModel      = viewModel,
+                // X: reset state and pop back to SESSION_SELECT
                 onNavigateBack = {
-                    // Clear lastCapturedMedia so PhotoCamera's LaunchedEffect(uri) does not
-                    // re-fire when PHOTO composable is restored, which would immediately
-                    // re-navigate back to EDIT.
-                    viewModel.clearLastCapturedMedia()
                     viewModel.resetBatch()
                     viewModel.resetCertificationState()
                     viewModel.resetWatermarkState()
-                    navController.navigate(CameraDestinations.PHOTO) {
-                        popUpTo(0) { inclusive = true }
-                    }
+                    navController.popBackStack()
                 },
                 onCertDone     = { done, savedEdits ->
                     val isBatch = viewModel.batchQueue.value.isNotEmpty()
@@ -145,8 +145,7 @@ fun CameraNavigation(
                                 popUpTo(CameraDestinations.EDIT) { inclusive = true }
                             }
                         }
-                        // If not last, PhotoEditScreen auto-advances to next photo via
-                        // LaunchedEffect(uri) detecting the _lastCapturedMedia change.
+                        // If not last, PhotoEditScreen auto-advances via LaunchedEffect(uri).
                     } else {
                         navController.navigate(CameraDestinations.NICKNAME) {
                             popUpTo(CameraDestinations.EDIT) { inclusive = true }
@@ -180,6 +179,7 @@ fun CameraNavigation(
                     viewModel.resetUploadState()
                     viewModel.resetWatermarkState()
                     viewModel.resetBatch()
+                    viewModel.clearLastCapturedMedia()
                     navController.navigate(CameraDestinations.PHOTO) {
                         popUpTo(0) { inclusive = true }
                     }
@@ -213,6 +213,7 @@ fun CameraNavigation(
                     viewModel.resetCertificationState()
                     viewModel.resetUploadState()
                     viewModel.resetWatermarkState()
+                    viewModel.clearLastCapturedMedia()
                     onClosed()
                 }
             )
@@ -221,12 +222,13 @@ fun CameraNavigation(
 }
 
 object CameraDestinations {
-    const val PHOTO        = "photo"
-    const val VIDEO        = "video"
-    const val PREVIEW      = "preview"
-    const val EDIT         = "edit"
-    const val NICKNAME     = "nickname"
-    const val SHARE        = "share"
-    const val BATCH_SELECT = "batch_select"
-    const val BATCH_SHARE  = "batch_share"
+    const val PHOTO          = "photo"
+    const val VIDEO          = "video"
+    const val PREVIEW        = "preview"
+    const val SESSION_SELECT = "session_select"
+    const val EDIT           = "edit"
+    const val NICKNAME       = "nickname"
+    const val SHARE          = "share"
+    const val BATCH_SELECT   = "batch_select"   // kept for compat, unused in main flow
+    const val BATCH_SHARE    = "batch_share"
 }
