@@ -102,7 +102,7 @@ fun BatchShareScreen(
             val failCount = items.size - successItems.size
             if (failCount > 0) {
                 Text(
-                    "${failCount}건 전송 실패",
+                    "${failCount}건 인증 실패",
                     color = Color(0xFFFF6B6B),
                     fontSize = 13.sp
                 )
@@ -242,7 +242,7 @@ private fun BatchResultRow(item: BatchItem, context: Context) {
                         tint = AccentGreen,
                         modifier = Modifier.size(14.dp)
                     )
-                    Text("전송 완료", color = AccentGreen, fontSize = 12.sp)
+                    Text("인증 완료", color = AccentGreen, fontSize = 12.sp)
                 }
             } else {
                 Row(
@@ -256,7 +256,7 @@ private fun BatchResultRow(item: BatchItem, context: Context) {
                         modifier = Modifier.size(14.dp)
                     )
                     Text(
-                        item.uploadError?.take(40) ?: "전송 실패",
+                        item.uploadError?.take(40) ?: "인증 실패",
                         color = Color(0xFFFF6B6B),
                         fontSize = 12.sp
                     )

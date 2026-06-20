@@ -115,7 +115,7 @@ fun NicknameInputScreen(
         AlertDialog(
             onDismissRequest = {},
             containerColor = Color(0xFF1E1E1E),
-            title = { Text("전송 실패", color = Color(0xFFFF6B6B), fontWeight = FontWeight.Bold) },
+            title = { Text("인증 실패", color = Color(0xFFFF6B6B), fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(failure.error.take(120), color = Color(0xFFDDDDDD), fontSize = 13.sp)
@@ -290,9 +290,9 @@ fun NicknameInputScreen(
                 )
                 val progressText = if (isBatchMode) {
                     val running = batchUploadState as? BatchUploadState.Running
-                    if (running != null) "${running.completed} / ${running.total}장 전송 중…"
-                    else "전송 준비 중…"
-                } else "전송 중…"
+                    if (running != null) "${running.completed} / ${running.total}장 인증 중…"
+                    else "인증 준비 중…"
+                } else "인증 중…"
                 Text(progressText, color = Color(0xFF888888), fontSize = 12.sp)
             }
         } else if (!isBatchMode && !isWatermarkReady && !isLocked) {
@@ -376,7 +376,7 @@ fun NicknameInputScreen(
                 )
                 Spacer(Modifier.width(10.dp))
                 Text(
-                    if (isBatchMode) "일괄 전송 중…" else "전송 중…",
+                    if (isBatchMode) "일괄 인증 중…" else "인증 중…",
                     fontWeight = FontWeight.Bold, fontSize = 15.sp
                 )
             } else {
