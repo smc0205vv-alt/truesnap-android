@@ -843,6 +843,7 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
 
     /** Initialises a new batch with [selected] session photos (max [MAX_BATCH_SIZE]). */
     fun initBatch(selected: List<Media>) {
+        Timber.d("initBatch: selected=${selected.size}, prevBatchCertItems=${_batchCertItems.value.size}")
         _batchQueue.value = selected.take(MAX_BATCH_SIZE)
         _batchEditIndex.value = 0
         _batchCertItems.value = emptyList()
@@ -864,6 +865,7 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
         savedEdits: Triple<Float, Float, Float>? = null
     ) {
         val media = _lastCapturedMedia.value ?: return
+        Timber.d("acceptBatchCertItem: editIndex=${_batchEditIndex.value}, queueSize=${_batchQueue.value.size}, prevCertItems=${_batchCertItems.value.size}")
         _batchCertItems.value = _batchCertItems.value + BatchItem(media, certDone)
         if (savedEdits != null) _batchGlobalEdits.value = savedEdits
 

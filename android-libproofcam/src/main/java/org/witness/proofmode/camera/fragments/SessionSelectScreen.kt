@@ -58,6 +58,7 @@ fun SessionSelectScreen(
 
     var selected by remember { mutableStateOf<Set<Media>>(emptySet()) }
     var initialSelectionDone by remember { mutableStateOf(false) }
+    var isStarting by remember { mutableStateOf(false) }
 
     // Default: select all photos once the list loads.
     LaunchedEffect(photoItems) {
@@ -194,12 +195,13 @@ fun SessionSelectScreen(
         ) {
             Button(
                 onClick = {
-                    if (selected.isEmpty()) return@Button
+                    if (selected.isEmpty() || isStarting) return@Button
+                    isStarting = true
                     viewModel.initBatch(selected.toList())
                     onStartCertification()
                 },
                 modifier = Modifier.weight(1f),
-                enabled = selected.isNotEmpty(),
+                enabled = selected.isNotEmpty() && !isStarting,
                 colors = ButtonDefaults.buttonColors(
                     containerColor          = AccentGreen,
                     contentColor            = Color.Black,
