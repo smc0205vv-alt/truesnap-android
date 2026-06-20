@@ -320,7 +320,7 @@ fun NicknameInputScreen(
 
         // Privacy notice
         Text(
-            "🔒 TrueSnap은 이미지를 절대 저장하지 않습니다.",
+            "🔒 TrueSnap은 이미지를 절대 서버에 저장하지 않습니다.",
             color = Color(0xFF888888),
             fontSize = 12.sp,
             modifier = Modifier

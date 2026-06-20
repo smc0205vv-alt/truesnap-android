@@ -236,6 +236,12 @@ fun VerifyScreen(
                     stageLabel  = "위변조 비교",
                     loading     = state.compareLoading,
                     content     = {
+                        Text(
+                            "인증 후 사진이 크게 바뀌었는지 확인합니다. 작은 편집은 감지되지 않을 수 있으니 이 결과만으로 100% 신뢰하지 마세요.",
+                            color = TextSecondary,
+                            fontSize = 11.sp,
+                            lineHeight = 16.sp
+                        )
                         when {
                             state.compareLoading -> {}
                             state.compareResult != null -> CompareResultContent(state.compareResult!!)
@@ -341,26 +347,34 @@ private fun CompareResultContent(r: VerificationService.CompareResult) {
         "minor_edit" -> VerdictUi(
             icon     = "✓",
             color    = AccentGreen,
-            title    = "밝기나 색감 조정이 감지됐지만 사진 내용은 동일합니다",
-            subtitle = "사진의 밝기·색감 등이 조정됐지만 촬영된 내용 자체는 바뀌지 않았습니다."
+            title    = "인증 후 일부 수정이 감지됐습니다",
+            subtitle = ""
         )
         "tampered", "suspicious" -> VerdictUi(
             icon     = "✗",
             color    = ErrorRed,
-            title    = "인증 이후 사진 내용이 수정된 것으로 보입니다",
-            subtitle = "인증된 원본과 다른 부분이 감지됐습니다."
+            title    = "인증 후 상당한 수정이 감지됐습니다",
+            subtitle = ""
         )
         "unknown" -> VerdictUi("?", TextSecondary, "pHash 미등록 — 비교 불가")
         else      -> VerdictUi("?", TextSecondary, "결과 알 수 없음")
     }
-    Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(ui.icon, color = ui.color, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(ui.title, color = ui.color, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-            if (ui.subtitle.isNotEmpty()) {
-                Text(ui.subtitle, color = ui.color, fontSize = 12.sp, fontWeight = FontWeight.Normal)
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(ui.icon, color = ui.color, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(ui.title, color = ui.color, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                if (ui.subtitle.isNotEmpty()) {
+                    Text(ui.subtitle, color = ui.color, fontSize = 12.sp, fontWeight = FontWeight.Normal)
+                }
             }
         }
+        Text(
+            "이 결과는 참고용입니다. 참고해 직접 한 번 더 확인해보세요.",
+            color = TextSecondary,
+            fontSize = 11.sp,
+            lineHeight = 16.sp
+        )
     }
 }
 
