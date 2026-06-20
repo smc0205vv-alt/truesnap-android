@@ -157,3 +157,26 @@
     *** Companion;
     kotlinx.serialization.KSerializer serializer(...);
 }
+
+# ----------------------------------------------------------------------
+# ZXing — QR code scanning (zxing:core has no consumer ProGuard rules)
+# ----------------------------------------------------------------------
+-keep class com.google.zxing.** { *; }
+
+# ----------------------------------------------------------------------
+# OkHttp — network layer
+# (OkHttp 4.x ships consumer rules but we pin them here for safety)
+# ----------------------------------------------------------------------
+-keep class okhttp3.** { *; }
+-keep interface okhttp3.** { *; }
+-dontwarn okhttp3.internal.platform.**
+-dontwarn org.conscrypt.**
+-dontwarn org.openjsse.**
+
+# ----------------------------------------------------------------------
+# Kotlin
+# ----------------------------------------------------------------------
+-keep class kotlin.Metadata { *; }
+-keepclassmembers class **$WhenMappings { <fields>; }
+-keepclassmembers class kotlin.Metadata { public <methods>; }
+-dontwarn kotlin.**
