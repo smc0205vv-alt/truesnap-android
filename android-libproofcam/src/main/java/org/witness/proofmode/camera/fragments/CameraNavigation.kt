@@ -122,7 +122,18 @@ fun CameraNavigation(
         ) {
             PhotoEditScreen(
                 viewModel      = viewModel,
-                onNavigateBack = { navController.popBackStack() },
+                onNavigateBack = {
+                    // Clear lastCapturedMedia so PhotoCamera's LaunchedEffect(uri) does not
+                    // re-fire when PHOTO composable is restored, which would immediately
+                    // re-navigate back to EDIT.
+                    viewModel.clearLastCapturedMedia()
+                    viewModel.resetBatch()
+                    viewModel.resetCertificationState()
+                    viewModel.resetWatermarkState()
+                    navController.navigate(CameraDestinations.PHOTO) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                },
                 onCertDone     = { done, savedEdits ->
                     val isBatch = viewModel.batchQueue.value.isNotEmpty()
                     if (isBatch) {

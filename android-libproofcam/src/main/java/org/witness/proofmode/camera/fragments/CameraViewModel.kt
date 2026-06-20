@@ -981,6 +981,11 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
         _batchUploadState.value = BatchUploadState.Idle
     }
 
+    /** Clears _lastCapturedMedia so PhotoCamera's LaunchedEffect(uri) does not re-trigger. */
+    fun clearLastCapturedMedia() {
+        _lastCapturedMedia.value = null
+    }
+
     companion object {
         private const val MAX_RECENT_NAMES = 10
     }
