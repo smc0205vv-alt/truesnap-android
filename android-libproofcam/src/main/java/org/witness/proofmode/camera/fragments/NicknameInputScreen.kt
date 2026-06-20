@@ -206,6 +206,12 @@ fun NicknameInputScreen(
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold
                 )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "이 인증서는 7일간 유효합니다.",
+                    color = Color(0xFF888888),
+                    fontSize = 11.sp
+                )
             }
         }
 
