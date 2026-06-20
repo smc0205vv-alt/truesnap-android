@@ -167,12 +167,22 @@ fun PhotoEditScreen(
 
     // Tracks the edit values to pass to onCertDone when applyToAll is on
     var pendingSavedEdits: Triple<Float, Float, Float>? by remember { mutableStateOf(null) }
+    // Prevents duplicate onCertDone calls for the same photo
+    // (fadeOut exit-transition can keep this composable alive briefly after navigation,
+    //  causing LaunchedEffect to re-fire with the same Done key)
+    var lastHandledAuthId by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(certificationState) {
         Timber.d("BATCH_TRACE EditScreen LaunchedEffect: certState=${certificationState::class.simpleName} batchIndex=$batchEditIndex batchTotal=$batchTotal")
         if (certificationState is CertificationState.Done) {
-            Timber.d("BATCH_TRACE EditScreen calling onCertDone for index=$batchEditIndex")
-            onCertDone(certificationState as CertificationState.Done, pendingSavedEdits)
+            val done = certificationState as CertificationState.Done
+            if (done.authId == lastHandledAuthId) {
+                Timber.w("BATCH_TRACE EditScreen: duplicate Done authId=${done.authId}, skipping")
+                return@LaunchedEffect
+            }
+            lastHandledAuthId = done.authId
+            Timber.d("BATCH_TRACE EditScreen calling onCertDone for index=$batchEditIndex authId=${done.authId}")
+            onCertDone(done, pendingSavedEdits)
             pendingSavedEdits = null
         }
     }
