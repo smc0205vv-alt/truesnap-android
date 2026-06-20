@@ -179,9 +179,6 @@ class CameraViewModel(private val activity: CameraActivity, private val app: App
     val batchGlobalEdits: StateFlow<Triple<Float, Float, Float>?> = _batchGlobalEdits
     // ─────────────────────────────────────────────────────────────────────────
 
-    /** Watermarked JPEG bytes held until registerCropHashes succeeds, then cleared. */
-    private var _wmBytesForCropReg: ByteArray? = null
-
     private val _watermarkState = MutableStateFlow<WatermarkState>(WatermarkState.Idle)
     val watermarkState: StateFlow<WatermarkState> = _watermarkState
 
@@ -657,13 +654,9 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
             // 2. Unique auth ID
             val authId = service.generateAuthId()
 
-            // 3. Lofi thumbnail — 8×8 downscale of the edited bitmap, non-reversible
-            val lofiThumbnail = service.generateLofiThumbnail(bitmap)
+            Timber.d("Certification: authId=%s (hashes + thumbnail deferred to watermark step)", authId)
 
-            Timber.d("Certification: authId=%s lofi=%s (hashes deferred to watermark step)",
-                authId, if (lofiThumbnail != null) "ok" else "null")
-
-            // 4. Overwrite the capture file with the edited JPEG
+            // 3. Overwrite the capture file with the edited JPEG
             // Use contentResolver to support both file:// and content:// URIs.
             try {
                 if (uri.scheme == "file") {
@@ -675,14 +668,14 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                 Timber.e(e, "Failed to save edited bitmap to %s", uri)
             }
 
-            // sha256Hash/pHash are intentionally empty here —
-            // they are computed from the watermarked JPEG in generateWatermark().
+            // sha256Hash/pHash/thumbnail are intentionally empty here —
+            // all are computed from the watermarked JPEG in generateWatermark().
             _certificationState.value = CertificationState.Done(
                 authId              = authId,
                 sha256Hash          = "",
                 pHash               = null,
                 captureTimestampMs  = captureTimestampMs,
-                lofiThumbnailBase64 = lofiThumbnail
+                lofiThumbnailBase64 = null
             )
         }
     }
@@ -739,27 +732,28 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                     tempFile
                 )
 
-                // Compute hashes from the final watermarked JPEG bytes.
+                // Compute all fingerprints from the final watermarked image.
+                // Nothing is sent to the server except these computed values — no image upload.
                 val service = CertificationService()
                 val sha256        = service.calculateSha256(wmBytes)
                 val pHash         = service.calculatePHash(wmBytes)
                 val cropHashes    = service.calculateBlockHashes(wmBytes)
                 val edgeDensities = service.calculateEdgeDensities(wmBytes)
-                // Keep a reference so startCertificationUpload can call registerCropHashes
-                // after the metadata upload succeeds (server recomputes hashes via Python).
-                _wmBytesForCropReg = wmBytes
-                Timber.d("Watermark hashes: sha256=%s pHash=%s blocks=%d edges=%s",
+                val thumbnail32   = service.generateThumbnail32(watermarked)
+                Timber.d("Watermark fingerprints: sha256=%s pHash=%s blocks=%d edges=%s thumb=%s",
                     sha256, pHash, cropHashes?.size ?: 0,
-                    if (edgeDensities != null) "${edgeDensities.size}" else "null")
+                    if (edgeDensities != null) "${edgeDensities.size}" else "null",
+                    if (thumbnail32 != null) "ok(${thumbnail32.length}B)" else "null")
 
-                // Update certificationState with the watermark-based hashes.
+                // Update certificationState with all watermark-based values.
                 val currentDone = _certificationState.value as? CertificationState.Done
                 if (currentDone != null) {
                     _certificationState.value = currentDone.copy(
-                        sha256Hash    = sha256,
-                        pHash         = pHash,
-                        cropHashes    = cropHashes,
-                        edgeDensities = edgeDensities
+                        sha256Hash          = sha256,
+                        pHash               = pHash,
+                        cropHashes          = cropHashes,
+                        edgeDensities       = edgeDensities,
+                        lofiThumbnailBase64 = thumbnail32
                     )
                 }
 
@@ -801,12 +795,8 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
             val service = CertificationService()
             _uploadState.value = when (val result = service.uploadMetadata(request)) {
                 is CertificationService.MetadataUploadResult.Success -> {
-                    val wmBytes = _wmBytesForCropReg
-                    if (wmBytes != null) {
-                        service.registerCropHashes(authId, wmBytes)
-                        _wmBytesForCropReg = null
-                    }
                     // Delete the session photo now that it is permanently registered.
+                    // No image is uploaded to the server — all fingerprints were computed on-device.
                     deleteMedia(_lastCapturedMedia.value)
                     UploadState.Success(result.authId)
                 }
@@ -939,6 +929,7 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                     val pHash         = service.calculatePHash(wmBytes)
                     val cropHashes    = service.calculateBlockHashes(wmBytes)
                     val edgeDensities = service.calculateEdgeDensities(wmBytes)
+                    val thumbnail32   = service.generateThumbnail32(watermarked)
 
                     val request = org.witness.proofmode.camera.network.CertificationService.MetadataUploadRequest(
                         authId              = item.certDone.authId,
@@ -946,14 +937,14 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                         pHash               = pHash,
                         captureTimestampMs  = item.certDone.captureTimestampMs,
                         nickname            = nickname,
-                        lofiThumbnailBase64 = item.certDone.lofiThumbnailBase64,
+                        lofiThumbnailBase64 = thumbnail32,
                         cropHashes          = cropHashes,
                         edgeDensities       = edgeDensities
                     )
 
                     when (val result = service.uploadMetadata(request)) {
                         is org.witness.proofmode.camera.network.CertificationService.MetadataUploadResult.Success -> {
-                            service.registerCropHashes(item.certDone.authId, wmBytes)
+                            // No image upload — all fingerprints computed on-device.
                             val segment = item.media.uri.lastPathSegment
                             segment?.let { name ->
                                 if (File(capturesDir, name).delete()) {

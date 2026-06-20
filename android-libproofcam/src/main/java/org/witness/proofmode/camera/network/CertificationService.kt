@@ -68,6 +68,9 @@ class CertificationService {
         private const val PHASH_SIZE = 8
         private const val PHASH_IMG_SIZE = PHASH_SIZE * 4  // 32
 
+        /** Pixel dimensions for the registration thumbnail (32×32 PNG, base64-encoded). */
+        private const val THUMBNAIL_SIZE = 32
+
         /** Fixed block grid for crop-region hashes. Must match server hash_image.py. */
         const val BLOCK_GRID_COLS = 16
         const val BLOCK_GRID_ROWS = 16
@@ -126,7 +129,7 @@ class CertificationService {
      *   capture_timestamp_ms — epoch milliseconds at capture time
      *   capture_time_utc     — ISO-8601 UTC string of the above
      *   nickname             — counterparty name entered by the user (not ownership-verified)
-     *   lofi_thumbnail       — base64 PNG of an 8×8 downscale; non-reversible composition hint
+     *   lofi_thumbnail       — base64 PNG of the watermarked image downscaled to 32×32 (for verify display)
      */
     data class MetadataUploadRequest(
         val authId: String,
@@ -149,22 +152,25 @@ class CertificationService {
     // ---------------------------------------------------------------------------
 
     /**
-     * Downscales [bitmap] to 8×8 pixels (no interpolation) and returns it as a
-     * base64-encoded PNG string (~256 bytes). The result is a non-reversible
-     * composition hint — it cannot be used to reconstruct the original image.
+     * Downscales [bitmap] to [THUMBNAIL_SIZE]×[THUMBNAIL_SIZE] pixels (bilinear) and returns it
+     * as a base64-encoded PNG string. Called on the watermarked final image immediately after
+     * watermark composition — the result is stored server-side for the verify display.
      */
-    fun generateLofiThumbnail(bitmap: Bitmap): String? {
+    fun generateThumbnail32(bitmap: Bitmap): String? {
         return try {
-            val tiny = Bitmap.createScaledBitmap(bitmap, 8, 8, false)
+            val thumb = Bitmap.createScaledBitmap(bitmap, THUMBNAIL_SIZE, THUMBNAIL_SIZE, true)
             val out = ByteArrayOutputStream()
-            tiny.compress(Bitmap.CompressFormat.PNG, 100, out)
-            tiny.recycle()
+            thumb.compress(Bitmap.CompressFormat.PNG, 100, out)
+            thumb.recycle()
             Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
         } catch (e: Exception) {
-            Timber.e(e, "Lofi thumbnail generation failed")
+            Timber.e(e, "Thumbnail generation failed")
             null
         }
     }
+
+    /** @deprecated Use [generateThumbnail32] instead — kept for call sites not yet migrated. */
+    fun generateLofiThumbnail(bitmap: Bitmap): String? = generateThumbnail32(bitmap)
 
     /** Generates a cryptographically random "TS-XXXXXX" identifier. */
     fun generateAuthId(): String {
