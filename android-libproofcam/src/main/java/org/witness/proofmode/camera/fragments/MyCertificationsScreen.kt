@@ -373,8 +373,8 @@ private fun CertificationDetailContent(
             }
         }
 
-        // Extend button (only for expired)
-        if (isExpired) {
+        // Extend button: visible when expiry notification fires (≤24h left) or already expired
+        if (daysLeft <= 0) {
             Button(
                 onClick = onExtend,
                 enabled = !isExtendingThis,

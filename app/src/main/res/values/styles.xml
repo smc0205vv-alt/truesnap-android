@@ -78,6 +78,13 @@
         <item name="android:fontFamily">@font/verdana</item>
     </style>
 
+    <!-- UCrop crop screen: opt out of forced edge-to-edge (targetSdk ≥ 35) so the
+         toolbar is not drawn behind the status bar. Dark background keeps white icons visible. -->
+    <style name="Theme.TrueSnap.UCrop" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowOptOutEdgeToEdgeEnforcement">true</item>
+        <item name="android:statusBarColor">@android:color/black</item>
+    </style>
+
     <style name="MainToolBarStyle" parent="Theme.AppCompat">
         <item name="android:textColorPrimary">#dddddd</item>
         <item name="android:textColorSecondary">#dddddd</item>

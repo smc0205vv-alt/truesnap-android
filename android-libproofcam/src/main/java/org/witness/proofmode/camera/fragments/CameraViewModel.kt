@@ -820,6 +820,10 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                         expiresAtMs        = result.expiresAtMs,
                         thumbnailBase64    = lofiThumbnailBase64
                     ))
+                    // Overwrite Kotlin-computed hashes with Node.js-computed values so
+                    // registration and verification use the same algorithm (no false positives).
+                    val wmFile = File(app.cacheDir, "wm_share_${result.authId}.jpg")
+                    if (wmFile.exists()) service.registerCropHashes(result.authId, wmFile.readBytes())
                     UploadState.Success(result.authId)
                 }
                 is CertificationService.MetadataUploadResult.Failure ->
@@ -985,6 +989,7 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                                 expiresAtMs        = result.expiresAtMs,
                                 thumbnailBase64    = thumbnail32
                             ))
+                            service.registerCropHashes(result.authId, wmBytes)
                             uploadSuccess = true
                         }
                         is org.witness.proofmode.camera.network.CertificationService.MetadataUploadResult.Failure ->
