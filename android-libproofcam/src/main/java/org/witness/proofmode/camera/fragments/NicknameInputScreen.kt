@@ -132,13 +132,11 @@ fun NicknameInputScreen(
                         viewModel.startCertificationUpload(
                             authId              = it.authId,
                             sha256Hash          = it.sha256Hash,
-                            pHash               = it.pHash,
                             captureTimestampMs  = it.captureTimestampMs,
                             nickname            = nickname.trim(),
                             lofiThumbnailBase64 = it.lofiThumbnailBase64,
                             cropHashes          = it.cropHashes,
                             edgeDensities       = it.edgeDensities,
-                            edgeHog             = it.edgeHog,
                             edgeStdDev          = it.edgeStdDev
                         )
                     }
@@ -367,13 +365,11 @@ fun NicknameInputScreen(
                         viewModel.startCertificationUpload(
                             authId              = it.authId,
                             sha256Hash          = it.sha256Hash,
-                            pHash               = it.pHash,
                             captureTimestampMs  = it.captureTimestampMs,
                             nickname            = trimmed,
                             lofiThumbnailBase64 = it.lofiThumbnailBase64,
                             cropHashes          = it.cropHashes,
                             edgeDensities       = it.edgeDensities,
-                            edgeHog             = it.edgeHog,
                             edgeStdDev          = it.edgeStdDev
                         )
                     }
