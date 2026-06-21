@@ -58,6 +58,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import org.witness.proofmode.ProofMode
 import org.witness.proofmode.camera.CameraActivity
@@ -88,21 +90,12 @@ const val MAX_BATCH_SIZE = 10
 sealed class CertificationState {
     object Idle : CertificationState()
     object Processing : CertificationState()
-    /**
-     * Hashes and auth ID computed on-device. Server upload is a separate later step.
-     *
-     * Server-side classification hint (implement on backend):
-     *   SHA-256 same                              → 동일 파일
-     *   SHA-256 diff + pHash Hamming ≤ 10        → 단순 보정됨
-     *   SHA-256 diff + pHash Hamming > 10        → 구조 변경 의심
-     */
+    /** Hashes and auth ID computed on-device. Server upload is a separate later step. */
     data class Done(
         val authId: String,
         val sha256Hash: String,
-        val pHash: String?,
         val captureTimestampMs: Long,
         val lofiThumbnailBase64: String? = null,
-        val cropHashes: List<String>? = null,
         val edgeDensities: FloatArray? = null,
         val edgeHog: FloatArray? = null,
         val edgeStdDev: FloatArray? = null
@@ -635,10 +628,9 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
      *
      * 1. Compress [bitmap] to JPEG bytes
      * 2. SHA-256 of those bytes
-     * 3. DCT perceptual hash (pHash) via ru.avicorp:phashcalc (avbase/pHashCalc)
-     * 4. Generate "TS-XXXXXX" auth ID
-     * 5. Lofi thumbnail — 8×8 base64 PNG composition hint
-     * 6. Overwrite the capture file with the filtered JPEG
+     * 3. Generate "TS-XXXXXX" auth ID
+     * 4. Lofi thumbnail — 8×8 base64 PNG composition hint
+     * 5. Overwrite the capture file with the filtered JPEG
      *
      * Server upload is deferred to a later step. Drives [certificationState].
      */
@@ -675,12 +667,11 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                 Timber.e(e, "Failed to save edited bitmap to %s", uri)
             }
 
-            // sha256Hash/pHash/thumbnail are intentionally empty here —
-            // all are computed from the watermarked JPEG in generateWatermark().
+            // sha256Hash/thumbnail are intentionally empty here —
+            // computed from the watermarked JPEG in generateWatermark().
             _certificationState.value = CertificationState.Done(
                 authId              = authId,
                 sha256Hash          = "",
-                pHash               = null,
                 captureTimestampMs  = captureTimestampMs,
                 lofiThumbnailBase64 = null
             )
@@ -745,32 +736,26 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                 // Nothing is sent to the server except these computed values — no image upload.
                 val service = CertificationService()
                 val sha256     = service.calculateSha256(wmBytes)
-                val pHash      = service.calculatePHash(wmBytes)
-                val cropHashes = service.calculateBlockHashes(wmBytes)
-                val tEdge0 = System.currentTimeMillis()
-                val edgeDensities = service.calculateEdgeDensities(wmBytes)
-                Timber.d("[PERF] edgeDensities: ${System.currentTimeMillis() - tEdge0}ms")
-                val tHog0 = System.currentTimeMillis()
-                val edgeHog = service.calculateEdgeHOG(wmBytes)
-                Timber.d("[PERF] edgeHOG: ${System.currentTimeMillis() - tHog0}ms")
-                val tStd0 = System.currentTimeMillis()
-                val edgeStdDev = service.calculateEdgeStdDev(wmBytes)
-                Timber.d("[PERF] edgeStdDev: ${System.currentTimeMillis() - tStd0}ms")
+                val tHashParallel0 = System.currentTimeMillis()
+                val (edgeDensities, edgeHog, edgeStdDev) = coroutineScope {
+                    val dAsync = async { service.calculateEdgeDensities(wmBytes) }
+                    val hAsync = async { service.calculateEdgeHOG(wmBytes) }
+                    val sAsync = async { service.calculateEdgeStdDev(wmBytes) }
+                    Triple(dAsync.await(), hAsync.await(), sAsync.await())
+                }
+                Timber.d("[PERF] edge parallel (d+h+s): ${System.currentTimeMillis() - tHashParallel0}ms")
                 val thumbnail32   = service.generateThumbnail32(watermarked)
-                Timber.d("Watermark fingerprints: sha256=%s pHash=%s blocks=%d edges=%s hog=%s stddev=%s thumb=%s",
-                    sha256, pHash, cropHashes?.size ?: 0,
+                Timber.d("Watermark fingerprints: sha256=%s edges=%s hog=%s stddev=%s thumb=%s",
+                    sha256,
                     if (edgeDensities != null) "${edgeDensities.size}" else "null",
                     if (edgeHog != null) "${edgeHog.size}" else "null",
                     if (edgeStdDev != null) "${edgeStdDev.size}" else "null",
                     if (thumbnail32 != null) "ok(${thumbnail32.length}B)" else "null")
 
-                // Update certificationState with all watermark-based values.
                 val currentDone = _certificationState.value as? CertificationState.Done
                 if (currentDone != null) {
                     _certificationState.value = currentDone.copy(
                         sha256Hash          = sha256,
-                        pHash               = pHash,
-                        cropHashes          = cropHashes,
                         edgeDensities       = edgeDensities,
                         edgeHog             = edgeHog,
                         edgeStdDev          = edgeStdDev,
@@ -794,11 +779,9 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
     fun startCertificationUpload(
         authId: String,
         sha256Hash: String,
-        pHash: String?,
         captureTimestampMs: Long,
         nickname: String,
         lofiThumbnailBase64: String? = null,
-        cropHashes: List<String>? = null,
         edgeDensities: FloatArray? = null,
         edgeHog: FloatArray? = null,
         edgeStdDev: FloatArray? = null
@@ -808,11 +791,9 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
             val request = CertificationService.MetadataUploadRequest(
                 authId              = authId,
                 sha256Hash          = sha256Hash,
-                pHash               = pHash,
                 captureTimestampMs  = captureTimestampMs,
                 nickname            = nickname,
                 lofiThumbnailBase64 = lofiThumbnailBase64,
-                cropHashes          = cropHashes,
                 edgeDensities       = edgeDensities,
                 edgeHog             = edgeHog,
                 edgeStdDev          = edgeStdDev
@@ -830,14 +811,6 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                         expiresAtMs        = result.expiresAtMs,
                         thumbnailBase64    = lofiThumbnailBase64
                     ))
-                    // Overwrite Kotlin-computed hashes with Node.js-computed values so
-                    // registration and verification use the same algorithm (no false positives).
-                    val wmFile = File(app.cacheDir, "wm_share_${result.authId}.jpg")
-                    if (wmFile.exists()) {
-                        val tCh0 = System.currentTimeMillis()
-                        service.registerCropHashes(result.authId, wmFile.readBytes())
-                        Timber.d("[PERF] registerCropHashes: ${System.currentTimeMillis() - tCh0}ms")
-                    }
                     UploadState.Success(result.authId)
                 }
                 is CertificationService.MetadataUploadResult.Failure ->
@@ -968,27 +941,22 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
 
                     val service = org.witness.proofmode.camera.network.CertificationService()
                     val sha256     = service.calculateSha256(wmBytes)
-                    val pHash      = service.calculatePHash(wmBytes)
-                    val cropHashes = service.calculateBlockHashes(wmBytes)
-                    val tEdgeB0 = System.currentTimeMillis()
-                    val edgeDensities = service.calculateEdgeDensities(wmBytes)
-                    Timber.d("[PERF][batch] edgeDensities: ${System.currentTimeMillis() - tEdgeB0}ms")
-                    val tHogB0 = System.currentTimeMillis()
-                    val edgeHog = service.calculateEdgeHOG(wmBytes)
-                    Timber.d("[PERF][batch] edgeHOG: ${System.currentTimeMillis() - tHogB0}ms")
-                    val tStdB0 = System.currentTimeMillis()
-                    val edgeStdDev = service.calculateEdgeStdDev(wmBytes)
-                    Timber.d("[PERF][batch] edgeStdDev: ${System.currentTimeMillis() - tStdB0}ms")
+                    val tHashParallelB0 = System.currentTimeMillis()
+                    val (edgeDensities, edgeHog, edgeStdDev) = coroutineScope {
+                        val dAsync = async { service.calculateEdgeDensities(wmBytes) }
+                        val hAsync = async { service.calculateEdgeHOG(wmBytes) }
+                        val sAsync = async { service.calculateEdgeStdDev(wmBytes) }
+                        Triple(dAsync.await(), hAsync.await(), sAsync.await())
+                    }
+                    Timber.d("[PERF][batch] edge parallel (d+h+s): ${System.currentTimeMillis() - tHashParallelB0}ms")
                     val thumbnail32   = service.generateThumbnail32(watermarked)
 
                     val request = org.witness.proofmode.camera.network.CertificationService.MetadataUploadRequest(
                         authId              = item.certDone.authId,
                         sha256Hash          = sha256,
-                        pHash               = pHash,
                         captureTimestampMs  = item.certDone.captureTimestampMs,
                         nickname            = nickname,
                         lofiThumbnailBase64 = thumbnail32,
-                        cropHashes          = cropHashes,
                         edgeDensities       = edgeDensities,
                         edgeHog             = edgeHog,
                         edgeStdDev          = edgeStdDev
@@ -1013,9 +981,6 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                                 expiresAtMs        = result.expiresAtMs,
                                 thumbnailBase64    = thumbnail32
                             ))
-                            val tChB0 = System.currentTimeMillis()
-                            service.registerCropHashes(result.authId, wmBytes)
-                            Timber.d("[PERF][batch] registerCropHashes: ${System.currentTimeMillis() - tChB0}ms")
                             uploadSuccess = true
                         }
                         is org.witness.proofmode.camera.network.CertificationService.MetadataUploadResult.Failure ->
