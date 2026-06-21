@@ -237,12 +237,6 @@ fun VerifyScreen(
                     stageLabel  = stringResource(R.string.verify_stage2_label),
                     loading     = state.compareLoading,
                     content     = {
-                        Text(
-                            stringResource(R.string.verify_stage2_disclaimer),
-                            color = TextSecondary,
-                            fontSize = 11.sp,
-                            lineHeight = 16.sp
-                        )
                         when {
                             state.compareLoading -> {}
                             state.compareResult != null -> CompareResultContent(state.compareResult!!)
@@ -346,16 +340,16 @@ private fun CompareResultContent(r: VerificationService.CompareResult) {
             subtitle = stringResource(R.string.verify_verdict_identical_sub)
         )
         "minor_edit" -> VerdictUi(
-            icon     = "✓",
-            color    = AccentGreen,
+            icon     = "~",
+            color    = WarnYellow,
             title    = stringResource(R.string.verify_verdict_minor_title),
-            subtitle = ""
+            subtitle = stringResource(R.string.verify_verdict_minor_sub)
         )
         "tampered", "suspicious" -> VerdictUi(
             icon     = "✗",
             color    = ErrorRed,
             title    = stringResource(R.string.verify_verdict_tampered_title),
-            subtitle = ""
+            subtitle = stringResource(R.string.verify_verdict_tampered_sub)
         )
         "unknown" -> VerdictUi("?", TextSecondary, stringResource(R.string.verify_verdict_unknown))
         else      -> VerdictUi("?", TextSecondary, stringResource(R.string.verify_verdict_other))
