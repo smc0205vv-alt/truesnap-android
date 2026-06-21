@@ -410,6 +410,7 @@ fun PhotoEditScreen(
                                     setToolbarWidgetColor(android.graphics.Color.WHITE)
                                 })
                                 .getIntent(context)
+                                .apply { setClass(context, TrueSnapCropActivity::class.java) }
                             withContext(Dispatchers.Main) { cropLauncher.launch(intent) }
                         }.onFailure { e -> Timber.e(e, "Failed to launch UCrop") }
                     }

@@ -146,7 +146,8 @@ object WatermarkComposer {
         val qrBgPad  = maxOf(3, qrSize / 32)
         val qrBmp    = generateQrBitmap("$VERIFY_BASE_URL/$authId", qrSize)
 
-        val rightBlockH    = authIdPaint.textSize + (qrSize + qrBgPad * 2).toFloat() + pad * 0.5f
+        val idQrGap        = pad.toFloat()
+        val rightBlockH    = authIdPaint.textSize + idQrGap + (qrSize + qrBgPad * 2).toFloat()
         val rightBlockTopY = stripMidY - rightBlockH * 0.5f
 
         canvas.drawText(
@@ -157,7 +158,7 @@ object WatermarkComposer {
         )
 
         val qrLeft = (rightColL + (rightColW - qrSize) / 2f).toInt()
-        val qrTop  = (rightBlockTopY + authIdPaint.textSize + pad * 0.5f).toInt()
+        val qrTop  = (rightBlockTopY + authIdPaint.textSize + idQrGap).toInt()
         canvas.drawRect(
             (qrLeft - qrBgPad).toFloat(), (qrTop - qrBgPad).toFloat(),
             (qrLeft + qrSize + qrBgPad).toFloat(), (qrTop + qrSize + qrBgPad).toFloat(),
