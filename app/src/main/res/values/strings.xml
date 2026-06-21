@@ -342,4 +342,75 @@
     <string name="resolution">해상도</string>
     <string name="timer">타이머</string>
 
+    <!-- 홈 화면 -->
+    <string name="home_subtitle">촬영부터 위변조 확인까지 — 한 곳에서</string>
+    <string name="home_tagline">AI 합성, 무단 도용, 사진 조작 —\n아무것도 숨길 수 없습니다.</string>
+    <string name="action_take_photo">사진 촬영</string>
+    <string name="action_verify">인증 확인</string>
+    <string name="action_my_certs">내 인증 목록</string>
+
+    <!-- 온보딩 화면 -->
+    <string name="onboarding_ts_skip">건너뛰기</string>
+    <string name="onboarding_ts_next">다음</string>
+    <string name="onboarding_ts_start">시작하기</string>
+    <string name="onboarding_ts_slide1_body">AI 합성·딥페이크·불법 도용 사진이 넘쳐납니다. TrueSnap으로 내 사진이 진짜임을 증명하세요.</string>
+    <string name="onboarding_ts_slide2_body">TrueSnap 카메라로 찍으면 촬영 즉시 인증이 완료됩니다. 별도 설정 없이 자동으로 처리됩니다.</string>
+    <string name="onboarding_ts_slide3_body">누구나 받은 사진을 앱에서 검사하면 원본 여부를 바로 확인할 수 있습니다.</string>
+    <string name="onboarding_ts_slide4_body">인증 내역은 \'내 인증 목록\'에서 관리합니다. 기간 연장도 무료로 제공됩니다.</string>
+
+    <!-- 만료 알림 -->
+    <string name="notif_expiry_channel_name">인증 만료 알림</string>
+    <string name="notif_expiry_channel_desc">TrueSnap 인증이 곧 만료될 때 알려줍니다</string>
+    <string name="notif_expiry_title">TrueSnap 인증 만료 임박</string>
+    <string name="notif_expiry_single">\'%s\' 님의 TrueSnap 인증이 내일 만료됩니다.</string>
+    <string name="notif_expiry_multiple">TrueSnap 인증 %d건이 내일 만료됩니다. \'내 인증 목록\'에서 확인하세요.</string>
+
+    <!-- 검증 화면 -->
+    <string name="verify_title">사진으로 인증 확인</string>
+    <string name="verify_guide_title">인증 확인 방법</string>
+    <string name="verify_guide_step1">촬영자에게 받은 사진, 또는 캡처한 사진을 저장하거나 앱으로 공유해주세요.</string>
+    <string name="verify_guide_step2">아래 \'사진 선택\' 버튼을 눌러 저장한 사진을 고르세요. 사진 속 코드를 자동으로 읽어 인증 정보를 조회합니다.</string>
+    <string name="verify_guide_step3">1단계(등록 여부)와 2단계(위변조 비교) 결과를 확인하세요.</string>
+    <string name="verify_btn_pick">갤러리에서 사진 선택하기</string>
+    <string name="verify_btn_pick_other">다른 사진 선택하기</string>
+    <string name="verify_qr_decoding">QR 코드 인식 중…</string>
+    <string name="verify_qr_success">QR 인식 성공</string>
+    <string name="verify_qr_fail">✗ QR 인식 실패</string>
+    <string name="verify_qr_fail_hint">코드를 찾을 수 없습니다. 직접 입력해주세요.</string>
+    <string name="verify_stage1_number">1단계</string>
+    <string name="verify_stage1_label">등록 확인</string>
+    <string name="verify_stage2_number">2단계</string>
+    <string name="verify_stage2_label">위변조 비교</string>
+    <string name="verify_stage2_disclaimer">인증 후 사진이 크게 바뀌었는지 확인합니다. 작은 편집은 감지되지 않을 수 있으니 이 결과만으로 100% 신뢰하지 마세요.</string>
+    <string name="verify_lookup_unregistered">미등록 인증ID — 서버에 등록된 인증이 없습니다</string>
+    <string name="verify_lookup_registered">인증 등록됨</string>
+    <string name="verify_label_capture_utc">촬영일시 (UTC)</string>
+    <string name="verify_label_nickname">등록 닉네임</string>
+    <string name="verify_verdict_identical_title">인증 당시 사진 그대로입니다</string>
+    <string name="verify_verdict_identical_sub">이 사진은 TrueSnap으로 촬영된 이후 변경되지 않았습니다.</string>
+    <string name="verify_verdict_minor_title">인증 후 일부 수정이 감지됐습니다</string>
+    <string name="verify_verdict_tampered_title">인증 후 상당한 수정이 감지됐습니다</string>
+    <string name="verify_verdict_unknown">pHash 미등록 — 비교 불가</string>
+    <string name="verify_verdict_other">결과 알 수 없음</string>
+    <string name="verify_compare_disclaimer">이 결과는 참고용입니다. 참고해 직접 한 번 더 확인해보세요.</string>
+    <string name="verify_manual_title">코드 직접 입력</string>
+    <string name="verify_manual_hint">사진에 표시된 코드를 직접 입력하세요.</string>
+    <string name="verify_manual_confirm">확인</string>
+    <string name="verify_error_prefix">조회 실패: %s</string>
+    <string name="verify_error_cannot_open">이미지를 열 수 없습니다</string>
+    <string name="verify_error_qr_not_found">QR 코드를 찾을 수 없습니다. 사진에 TrueSnap 워터마크가 있는지 확인하세요.</string>
+    <string name="verify_error_cannot_read">이미지를 읽을 수 없습니다</string>
+    <!-- 네트워크 오류 메시지 -->
+    <string name="error_net_timeout">서버 응답 시간이 초과됐습니다. 잠시 후 다시 시도해주세요.</string>
+    <string name="error_net_connect">서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.</string>
+    <string name="error_net_no_internet">인터넷 연결을 확인해주세요.</string>
+    <string name="error_net_ssl_peer">보안 인증서 검증에 실패했습니다. 앱을 최신 버전으로 업데이트해주세요.</string>
+    <string name="error_net_ssl">보안 연결 오류가 발생했습니다.</string>
+    <string name="error_net_generic">네트워크 오류가 발생했습니다.</string>
+    <string name="error_http_too_many">요청이 너무 많습니다. 잠시 후 다시 시도해주세요.</string>
+    <string name="error_http_too_large">파일이 너무 큽니다.</string>
+    <string name="error_http_maintenance">서버 점검 중입니다. 잠시 후 다시 시도해주세요.</string>
+    <string name="error_http_server">서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.</string>
+    <string name="error_http_generic">오류가 발생했습니다. 잠시 후 다시 시도해주세요.</string>
+
 </resources>

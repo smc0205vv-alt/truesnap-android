@@ -44,6 +44,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -115,12 +116,12 @@ fun NicknameInputScreen(
         AlertDialog(
             onDismissRequest = {},
             containerColor = Color(0xFF1E1E1E),
-            title = { Text("인증 실패", color = Color(0xFFFF6B6B), fontWeight = FontWeight.Bold) },
+            title = { Text(stringResource(R.string.nickname_error_title), color = Color(0xFFFF6B6B), fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(failure.error.take(120), color = Color(0xFFDDDDDD), fontSize = 13.sp)
                     Text(
-                        "재시도하거나, 지금은 건너뛰고 나중에 다시 시도할 수 있습니다.",
+                        stringResource(R.string.nickname_error_retry_hint),
                         color = Color(0xFF888888), fontSize = 12.sp
                     )
                 }
@@ -142,12 +143,12 @@ fun NicknameInputScreen(
                         )
                     }
                 }) {
-                    Text("재시도", color = AccentGreen, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.nickname_error_retry), color = AccentGreen, fontWeight = FontWeight.SemiBold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { onConfirmed() }) {
-                    Text("건너뛰기", color = Color(0xFF888888))
+                    Text(stringResource(R.string.nickname_error_skip), color = Color(0xFF888888))
                 }
             }
         )
@@ -170,12 +171,12 @@ fun NicknameInputScreen(
             IconButton(onClick = { if (!isLocked) onNavigateBack() }) {
                 Icon(
                     imageVector = ImageVector.vectorResource(R.drawable.baseline_close_24),
-                    contentDescription = "닫기",
+                    contentDescription = null,
                     tint = if (isLocked) Color.Gray else Color.White
                 )
             }
             Spacer(Modifier.weight(1f))
-            Text("촬영자 닉네임을 설정하세요", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.nickname_title), color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.weight(1f))
             Spacer(Modifier.width(48.dp))
         }
@@ -190,15 +191,15 @@ fun NicknameInputScreen(
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             if (isBatchMode) {
-                Text("인증 예정", color = Color(0xFF888888), fontSize = 11.sp)
+                Text(stringResource(R.string.nickname_cert_planned), color = Color(0xFF888888), fontSize = 11.sp)
                 Text(
-                    "${batchCertItems.size}장 일괄 인증",
+                    stringResource(R.string.nickname_batch_count, batchCertItems.size),
                     color = AccentGreen,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold
                 )
             } else if (doneState != null) {
-                Text("인증 ID", color = Color(0xFF888888), fontSize = 11.sp)
+                Text(stringResource(R.string.nickname_auth_id_label), color = Color(0xFF888888), fontSize = 11.sp)
                 Text(
                     doneState.authId,
                     color = AccentGreen,
@@ -208,13 +209,13 @@ fun NicknameInputScreen(
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "이 인증서는 7일간 유효합니다.",
+                    stringResource(R.string.nickname_cert_validity),
                     color = Color(0xFF888888),
                     fontSize = 11.sp
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "인증 시 사진의 요약 정보가 저장됩니다. 색상과 구도만 흐릿하게 남는 수준으로, 사람이나 사물을 알아볼 수 없으며 원본 복원도 불가능합니다.",
+                    stringResource(R.string.nickname_privacy_detail),
                     color = Color(0xFF666666),
                     fontSize = 10.sp,
                     lineHeight = 14.sp
@@ -227,7 +228,7 @@ fun NicknameInputScreen(
         // Recent name chips
         if (recentNames.isNotEmpty() && !isLocked) {
             Text(
-                "최근 사용한 이름",
+                stringResource(R.string.nickname_recent_names),
                 color = Color(0xFF888888),
                 fontSize = 12.sp,
                 modifier = Modifier.padding(horizontal = 16.dp)
@@ -259,7 +260,7 @@ fun NicknameInputScreen(
         OutlinedTextField(
             value = nickname,
             onValueChange = { if (!isLocked) nickname = it },
-            label = { Text("닉네임") },
+            label = { Text(stringResource(R.string.nickname_field_label)) },
             singleLine = true,
             enabled = !isLocked,
             modifier = Modifier
@@ -300,9 +301,9 @@ fun NicknameInputScreen(
                 )
                 val progressText = if (isBatchMode) {
                     val running = batchUploadState as? BatchUploadState.Running
-                    if (running != null) "${running.completed} / ${running.total}장 인증 중…"
-                    else "인증 준비 중…"
-                } else "인증 중…"
+                    if (running != null) stringResource(R.string.nickname_uploading_batch, running.completed, running.total)
+                    else stringResource(R.string.nickname_preparing)
+                } else stringResource(R.string.nickname_uploading)
                 Text(progressText, color = Color(0xFF888888), fontSize = 12.sp)
             }
         } else if (!isBatchMode && !isWatermarkReady && !isLocked) {
@@ -319,8 +320,8 @@ fun NicknameInputScreen(
                     strokeWidth = 2.dp
                 )
                 Text(
-                    if (watermarkState is WatermarkState.Failed) "워터마크 생성 실패 — 재시도 중"
-                    else "인증 준비 중…",
+                    if (watermarkState is WatermarkState.Failed) stringResource(R.string.nickname_watermark_fail)
+                    else stringResource(R.string.nickname_preparing),
                     color = Color(0xFF888888), fontSize = 12.sp
                 )
             }
@@ -328,7 +329,7 @@ fun NicknameInputScreen(
 
         // Privacy notice
         Text(
-            "🔒 TrueSnap은 이미지를 절대 서버에 저장하지 않습니다.",
+            stringResource(R.string.nickname_privacy_notice),
             color = Color(0xFF888888),
             fontSize = 12.sp,
             modifier = Modifier
@@ -336,7 +337,7 @@ fun NicknameInputScreen(
                 .padding(bottom = 4.dp)
         )
         Text(
-            "인증 시 사진의 요약 정보가 저장됩니다. 색상과 구도만 흐릿하게 남는 수준으로, 사람이나 사물을 알아볼 수 없으며 원본 복원도 불가능합니다.",
+            stringResource(R.string.nickname_privacy_detail),
             color = Color(0xFF666666),
             fontSize = 10.sp,
             lineHeight = 14.sp,
@@ -397,14 +398,14 @@ fun NicknameInputScreen(
                 )
                 Spacer(Modifier.width(10.dp))
                 Text(
-                    if (isBatchMode) "일괄 인증 중…" else "인증 중…",
+                    stringResource(R.string.nickname_uploading),
                     fontWeight = FontWeight.Bold, fontSize = 15.sp
                 )
             } else {
                 val label = if (isBatchMode)
-                    "${batchCertItems.size}장 인증 확정 (이후 수정 불가)"
+                    stringResource(R.string.nickname_confirm_batch, batchCertItems.size)
                 else
-                    "확정 (이후 수정 불가)"
+                    stringResource(R.string.nickname_confirm_single)
                 Text(label, fontWeight = FontWeight.Bold, fontSize = 15.sp)
             }
         }

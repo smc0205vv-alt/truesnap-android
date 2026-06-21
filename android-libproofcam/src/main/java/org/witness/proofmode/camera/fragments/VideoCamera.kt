@@ -86,6 +86,7 @@ import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.camera.core.CameraSelector
 import org.witness.proofmode.camera.R
 import org.witness.proofmode.camera.utils.getName
 import org.witness.proofmode.camera.utils.toIconRes
@@ -108,6 +109,9 @@ fun VideoCamera(modifier: Modifier = Modifier,cameraViewModel: CameraViewModel =
     }
     val recordingState by cameraViewModel.recordingState.collectAsStateWithLifecycle()
     val torchOn by cameraViewModel.torchOn.collectAsStateWithLifecycle()
+    val lensFacing by cameraViewModel.lensFacing.asFlow()
+        .collectAsStateWithLifecycle(CameraSelector.LENS_FACING_BACK)
+    val isFrontCamera = lensFacing == CameraSelector.LENS_FACING_FRONT
     val settingsSheetState = rememberModalBottomSheetState()
     val scope = rememberCoroutineScope()
     var showBSettingsBottomSheet by remember { mutableStateOf(false) }
@@ -263,15 +267,20 @@ fun VideoCamera(modifier: Modifier = Modifier,cameraViewModel: CameraViewModel =
                                     ) else stringResource(R.string.show_grid_lines_description)
                                 )
                             }
-                            IconButton(onClick = {
-                                cameraViewModel.toggleTorchForVideo()
-
-                            }) {
-                                Icon(imageVector = if (torchOn) ImageVector.vectorResource(R.drawable.ic_flash_on)
-                                else ImageVector.vectorResource(R.drawable.ic_flash_off),
-                                    tint = if (torchOn) AccentGreen else Color.White,contentDescription = if (torchOn) stringResource(
-                                        R.string.turn_flash_off
-                                    ) else stringResource(R.string.turn_flash_on)
+                            IconButton(
+                                onClick = { cameraViewModel.toggleTorchForVideo() },
+                                enabled = !isFrontCamera
+                            ) {
+                                Icon(
+                                    imageVector = if (torchOn) ImageVector.vectorResource(R.drawable.ic_flash_on)
+                                                  else ImageVector.vectorResource(R.drawable.ic_flash_off),
+                                    tint = when {
+                                        isFrontCamera -> Color.White.copy(alpha = 0.3f)
+                                        torchOn -> AccentGreen
+                                        else -> Color.White
+                                    },
+                                    contentDescription = if (torchOn) stringResource(R.string.turn_flash_off)
+                                                         else stringResource(R.string.turn_flash_on)
                                 )
                             }
                         }

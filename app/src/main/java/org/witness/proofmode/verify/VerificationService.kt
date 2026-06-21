@@ -6,6 +6,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import org.witness.proofmode.R
 import org.witness.proofmode.camera.BuildConfig
 import timber.log.Timber
 import java.util.concurrent.TimeUnit
@@ -23,7 +24,7 @@ import java.util.concurrent.TimeUnit
  *   Multipart: auth_id (text) + image (jpeg bytes)
  *   Expected 200: JSON with classification, sha256_match, phash_hamming
  */
-class VerificationService {
+class VerificationService(private val context: android.content.Context) {
 
     companion object {
         const val LOOKUP_URL  = "https://truesnap-production.up.railway.app/api/v1/certify"
@@ -126,19 +127,19 @@ class VerificationService {
     // ── Error message helpers ─────────────────────────────────────────────────
 
     private fun friendlyNetworkError(e: Throwable): String = when (e) {
-        is java.net.SocketTimeoutException          -> "서버 응답 시간이 초과됐습니다. 잠시 후 다시 시도해주세요."
-        is java.net.ConnectException                -> "서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요."
-        is java.net.UnknownHostException            -> "인터넷 연결을 확인해주세요."
-        is javax.net.ssl.SSLPeerUnverifiedException -> "보안 인증서 검증에 실패했습니다. 앱을 최신 버전으로 업데이트해주세요."
-        is javax.net.ssl.SSLException               -> "보안 연결 오류가 발생했습니다."
-        else                                        -> "네트워크 오류가 발생했습니다."
+        is java.net.SocketTimeoutException          -> context.getString(R.string.error_net_timeout)
+        is java.net.ConnectException                -> context.getString(R.string.error_net_connect)
+        is java.net.UnknownHostException            -> context.getString(R.string.error_net_no_internet)
+        is javax.net.ssl.SSLPeerUnverifiedException -> context.getString(R.string.error_net_ssl_peer)
+        is javax.net.ssl.SSLException               -> context.getString(R.string.error_net_ssl)
+        else                                        -> context.getString(R.string.error_net_generic)
     }
 
     private fun httpErrorMessage(code: Int): String = when {
-        code == 429       -> "요청이 너무 많습니다. 잠시 후 다시 시도해주세요."
-        code == 413       -> "파일이 너무 큽니다."
-        code == 503       -> "서버 점검 중입니다. 잠시 후 다시 시도해주세요."
-        code in 500..599  -> "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
-        else              -> "오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+        code == 429       -> context.getString(R.string.error_http_too_many)
+        code == 413       -> context.getString(R.string.error_http_too_large)
+        code == 503       -> context.getString(R.string.error_http_maintenance)
+        code in 500..599  -> context.getString(R.string.error_http_server)
+        else              -> context.getString(R.string.error_http_generic)
     }
 }

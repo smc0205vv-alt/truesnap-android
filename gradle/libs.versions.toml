@@ -92,6 +92,9 @@ gpuimage = "2.1.0"
 # pHashCalc — perceptual hashing (DCT-based)
 phashcalc = "1.0.1"
 
+# UCrop — photo cropping UI
+ucrop = "2.2.8"
+
 # Testing
 junit = "4.13.2"
 androidx-test-core = "1.7.0"
@@ -206,6 +209,12 @@ gpuimage = { module = "jp.co.cyberagent.android:gpuimage", version.ref = "gpuima
 
 # pHashCalc
 phashcalc = { module = "ru.avicorp:phashcalc", version.ref = "phashcalc" }
+
+# UCrop
+ucrop = { module = "com.github.yalantis:ucrop", version.ref = "ucrop" }
+
+# Extended Material Icons (Crop, RotateRight, Flip …)
+androidx-compose-material-icons-extended = { module = "androidx.compose.material:material-icons-extended", version.ref = "compose-material-icons" }
 
 # Testing
 junit = { module = "junit:junit", version.ref = "junit" }

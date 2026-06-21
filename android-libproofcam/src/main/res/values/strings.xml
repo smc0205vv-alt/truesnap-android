@@ -33,4 +33,82 @@
     <string name="video_settings">Video Settings</string>
     <string name="resolution">Resolution</string>
     <string name="timer">Timer</string>
+
+    <!-- 내 인증 목록 화면 -->
+    <string name="my_certs_title">내 인증 목록</string>
+    <string name="my_certs_empty_title">인증 내역이 없습니다</string>
+    <string name="my_certs_empty_desc">촬영 후 인증을 완료하면 여기에 표시됩니다.</string>
+    <string name="cert_status_expired">만료됨</string>
+    <string name="cert_status_expires_today">오늘 만료</string>
+    <string name="cert_status_days_left">%d일 남음</string>
+    <string name="cert_label_capture_date">촬영 시각</string>
+    <string name="cert_label_nickname">촬영자</string>
+    <string name="cert_label_expiry">만료일</string>
+    <string name="cert_expiry_with_days">%1$s (%2$d일 남음)</string>
+    <string name="cert_expiry_expired">%s (만료됨)</string>
+    <string name="cert_qr_label">인증 QR</string>
+    <string name="cert_qr_hint">truesnap.app 에서 스캔하면 인증을 확인할 수 있습니다</string>
+    <string name="cert_extend_button">연장하기 (무료 · +7일)</string>
+    <string name="cert_extending">연장 중…</string>
+    <string name="cert_extended_success">인증이 7일 연장됐습니다.</string>
+    <string name="cert_delete_button">목록에서 삭제</string>
+    <string name="cert_close">닫기</string>
+    <string name="cert_delete_title">인증 삭제</string>
+    <string name="cert_delete_message">%s 인증을 목록에서 삭제할까요?\n서버 인증 기록은 유지됩니다.</string>
+    <string name="cert_delete_confirm">삭제</string>
+    <string name="cert_delete_cancel">취소</string>
+    <string name="cert_verify_qr_label">인증 QR</string>
+
+    <!-- 배치 선택 화면 -->
+    <string name="batch_select_title">인증할 사진 선택</string>
+    <string name="batch_select_count">%1$d장 선택됨  (최대 %2$d장)</string>
+    <string name="batch_select_empty">세션 사진이 없습니다.\n카메라로 먼저 촬영해주세요.</string>
+    <string name="batch_select_btn_empty">사진을 선택해주세요</string>
+    <string name="batch_select_btn">%d장 인증하기</string>
+    <!-- 배치 결과 화면 -->
+    <string name="batch_share_done_count">%1$d / %2$d건 인증 완료</string>
+    <string name="batch_share_fail_count">%d건 인증 실패</string>
+    <string name="batch_share_chooser">전체 공유</string>
+    <string name="batch_share_btn_share_all">전체 공유 (%d장)</string>
+    <string name="batch_share_btn_save_all">갤러리에 모두 저장 (%d장)</string>
+    <string name="batch_share_btn_home">홈으로 돌아가기</string>
+    <string name="batch_item_certified">인증 완료</string>
+    <string name="batch_item_failed">인증 실패</string>
+    <string name="batch_saved_count">%d장 갤러리에 저장됐습니다</string>
+    <!-- 인증 공유 화면 -->
+    <string name="cert_share_title">인증 완료</string>
+    <string name="cert_share_watermark_generating">워터마크 생성 중…</string>
+    <string name="cert_share_watermark_failed">워터마크 생성 실패: %s</string>
+    <string name="cert_share_chooser">공유하기</string>
+    <string name="cert_share_btn_share">공유하기</string>
+    <string name="cert_share_btn_save">갤러리에 저장</string>
+    <string name="cert_share_btn_home">홈으로 돌아가기</string>
+    <string name="cert_share_save_ok">갤러리 저장 완료 (Pictures/TrueSnap)</string>
+    <string name="cert_share_save_fail_uri">갤러리 저장 실패 (URI 생성 오류)</string>
+    <string name="cert_share_save_fail">갤러리 저장 실패: %s</string>
+    <string name="perm_storage_denied">저장 권한이 거부되었습니다</string>
+    <!-- 닉네임 입력 화면 -->
+    <string name="nickname_title">촬영자 닉네임을 설정하세요</string>
+    <string name="nickname_cert_planned">인증 예정</string>
+    <string name="nickname_batch_count">%d장 인증</string>
+    <string name="nickname_auth_id_label">인증 ID</string>
+    <string name="nickname_cert_validity">이 인증서는 7일간 유효합니다.</string>
+    <string name="nickname_privacy_detail">인증 시 사진의 요약 정보가 저장됩니다. 색상과 구도만 흐릿하게 남는 수준으로, 사람이나 사물을 알아볼 수 없으며 원본 복원도 불가능합니다.</string>
+    <string name="nickname_recent_names">최근 사용한 이름</string>
+    <string name="nickname_field_label">닉네임</string>
+    <string name="nickname_uploading_batch">%1$d / %2$d장 인증 중…</string>
+    <string name="nickname_preparing">인증 준비 중…</string>
+    <string name="nickname_watermark_fail">워터마크 생성 실패 — 재시도 중</string>
+    <string name="nickname_privacy_notice">🔒 TrueSnap은 이미지를 절대 서버에 저장하지 않습니다.</string>
+    <string name="nickname_uploading">인증 중…</string>
+    <string name="nickname_confirm_batch">%d장 인증 확정 (이후 수정 불가)</string>
+    <string name="nickname_confirm_single">확정 (이후 수정 불가)</string>
+    <string name="nickname_error_title">인증 실패</string>
+    <string name="nickname_error_retry_hint">재시도하거나, 지금은 건너뛰고 나중에 다시 시도할 수 있습니다.</string>
+    <string name="nickname_error_retry">재시도</string>
+    <string name="nickname_error_skip">건너뛰기</string>
+    <!-- CameraViewModel 오류 -->
+    <string name="cert_vm_error_capture_not_found">캡처 파일을 찾을 수 없습니다</string>
+    <string name="cert_vm_error_decode_fail">이미지 디코딩 실패</string>
+    <string name="cert_vm_error_unknown">알 수 없는 오류</string>
 </resources>

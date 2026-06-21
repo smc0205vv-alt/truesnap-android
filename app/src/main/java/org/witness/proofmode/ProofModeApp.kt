@@ -236,6 +236,9 @@ class ProofModeApp : Application(), Configuration.Provider {
 
         StorageProviderManager.getInstance().initializeStorageProviders(this)
 
+        ExpiryCheckWorker.createNotificationChannel(this)
+        ExpiryCheckWorker.scheduleDaily(this)
+
         val isNative = runCatching {
 
             val nativeClass = Class.forName("info.guardianproject.durindoor.Native")

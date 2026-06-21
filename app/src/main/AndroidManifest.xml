@@ -53,6 +53,7 @@
         tools:remove="android:maxSdkVersion" />
 
     <uses-permission android:name="android.permission.GET_ACCOUNTS" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <uses-permission android:name="android.permission.DETECT_SCREEN_CAPTURE" />
     <uses-permission android:name="android.permission.DETECT_SCREEN_RECORDING" />
@@ -66,6 +67,14 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
         <activity android:name=".PermissionActivity" />
+        <activity
+            android:name=".MyCertificationsActivity"
+            android:exported="false"
+            android:label="내 인증 목록" />
+        <activity
+            android:name=".TrueSnapOnboardingActivity"
+            android:exported="false"
+            android:label="@string/app_name" />
         <activity
             android:name=".onboarding.OnboardingActivity"
             android:label="@string/app_name" />

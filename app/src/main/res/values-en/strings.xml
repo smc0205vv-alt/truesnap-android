@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Home screen -->
+    <string name="home_subtitle">From capture to tamper check — all in one place</string>
+    <string name="home_tagline">AI fakes, stolen shots, edited photos —\nnothing slips past.</string>
+    <string name="action_take_photo">Take Photo</string>
+    <string name="action_verify">Verify</string>
+    <string name="action_my_certs">My Certifications</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_ts_skip">Skip</string>
+    <string name="onboarding_ts_next">Next</string>
+    <string name="onboarding_ts_start">Get Started</string>
+    <string name="onboarding_ts_slide1_body">AI fakes, deepfakes, and stolen photos are everywhere. Prove your photos are real with TrueSnap.</string>
+    <string name="onboarding_ts_slide2_body">Shoot with the TrueSnap camera and your photo is certified instantly — no extra steps needed.</string>
+    <string name="onboarding_ts_slide3_body">Anyone who receives your photo can instantly check whether it\'s authentic — right in the app.</string>
+    <string name="onboarding_ts_slide4_body">Manage your certifications in My Certifications, and extend them anytime for free.</string>
+
+    <!-- Expiry notifications -->
+    <string name="notif_expiry_channel_name">Certification Expiry Alerts</string>
+    <string name="notif_expiry_channel_desc">Notifies you when a TrueSnap certification is about to expire</string>
+    <string name="notif_expiry_title">TrueSnap Certification Expiring Soon</string>
+    <string name="notif_expiry_single">%s\'s TrueSnap certification expires tomorrow.</string>
+    <string name="notif_expiry_multiple">%d TrueSnap certifications expire tomorrow. Check My Certifications.</string>
+
+    <!-- Verification screen -->
+    <string name="verify_title">Verify Photo</string>
+    <string name="verify_guide_title">How to verify</string>
+    <string name="verify_guide_step1">Save or share the photo you received from the photographer directly to this app.</string>
+    <string name="verify_guide_step2">Tap the button below to select the saved photo. The code in the photo will be read automatically.</string>
+    <string name="verify_guide_step3">Check the results for Step 1 (registration) and Step 2 (tamper check).</string>
+    <string name="verify_btn_pick">Select a photo from gallery</string>
+    <string name="verify_btn_pick_other">Select a different photo</string>
+    <string name="verify_qr_decoding">Reading QR code…</string>
+    <string name="verify_qr_success">QR detected</string>
+    <string name="verify_qr_fail">✗ QR not detected</string>
+    <string name="verify_qr_fail_hint">No code found. Please enter it manually.</string>
+    <string name="verify_stage1_number">Step 1</string>
+    <string name="verify_stage1_label">Registration Check</string>
+    <string name="verify_stage2_number">Step 2</string>
+    <string name="verify_stage2_label">Tamper Check</string>
+    <string name="verify_stage2_disclaimer">Checks whether the photo changed significantly since certification. Minor edits may not be detected — don\'t rely solely on this result.</string>
+    <string name="verify_lookup_unregistered">Unregistered ID — no certification found on server</string>
+    <string name="verify_lookup_registered">Certification found</string>
+    <string name="verify_label_capture_utc">Capture time (UTC)</string>
+    <string name="verify_label_nickname">Registered name</string>
+    <string name="verify_verdict_identical_title">Unchanged since certification</string>
+    <string name="verify_verdict_identical_sub">This photo has not been altered since it was certified with TrueSnap.</string>
+    <string name="verify_verdict_minor_title">Minor edits detected after certification</string>
+    <string name="verify_verdict_tampered_title">Significant edits detected after certification</string>
+    <string name="verify_verdict_unknown">No comparison data — tamper check unavailable</string>
+    <string name="verify_verdict_other">Result unknown</string>
+    <string name="verify_compare_disclaimer">This result is for reference only. We recommend double-checking before making any decisions.</string>
+    <string name="verify_manual_title">Enter code manually</string>
+    <string name="verify_manual_hint">Enter the code shown in the photo.</string>
+    <string name="verify_manual_confirm">Confirm</string>
+    <string name="verify_error_prefix">Lookup failed: %s</string>
+    <string name="verify_error_cannot_open">Could not open image</string>
+    <string name="verify_error_qr_not_found">No QR code found. Make sure the photo has a TrueSnap watermark.</string>
+    <string name="verify_error_cannot_read">Could not read image</string>
+    <!-- Network error messages -->
+    <string name="error_net_timeout">Server took too long to respond. Please try again later.</string>
+    <string name="error_net_connect">Could not connect to server. Please try again later.</string>
+    <string name="error_net_no_internet">Please check your internet connection.</string>
+    <string name="error_net_ssl_peer">Security certificate verification failed. Please update the app.</string>
+    <string name="error_net_ssl">Secure connection error.</string>
+    <string name="error_net_generic">A network error occurred.</string>
+    <string name="error_http_too_many">Too many requests. Please try again later.</string>
+    <string name="error_http_too_large">File is too large.</string>
+    <string name="error_http_maintenance">Server is under maintenance. Please try again later.</string>
+    <string name="error_http_server">Server error. Please try again later.</string>
+    <string name="error_http_generic">An error occurred. Please try again later.</string>
+</resources>

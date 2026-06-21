@@ -84,6 +84,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.camera.core.CameraSelector
+import androidx.lifecycle.asFlow
 import org.witness.proofmode.camera.R
 import org.witness.proofmode.camera.utils.flashModeToIconRes
 import java.util.UUID
@@ -124,6 +126,12 @@ fun PhotoCamera(modifier: Modifier = Modifier, cameraViewModel: CameraViewModel 
     var showExposureIndicator by remember { mutableStateOf(false) }
     val flashMode by cameraViewModel.flashMode.collectAsStateWithLifecycle()
     var showFlashModes by remember { mutableStateOf(false) }
+    val lensFacing by cameraViewModel.lensFacing.asFlow()
+        .collectAsStateWithLifecycle(CameraSelector.LENS_FACING_BACK)
+    val isFrontCamera = lensFacing == CameraSelector.LENS_FACING_FRONT
+    LaunchedEffect(isFrontCamera) {
+        if (isFrontCamera) showFlashModes = false
+    }
     val ultraHdrOn by cameraViewModel.ultraHdr.collectAsStateWithLifecycle()
     // Still-capture framing & compression presets, surfaced in the settings sheet below.
     val photoAspectRatio by cameraViewModel.photoAspectRatio.collectAsStateWithLifecycle()
@@ -328,12 +336,14 @@ fun PhotoCamera(modifier: Modifier = Modifier, cameraViewModel: CameraViewModel 
                                     ) else stringResource(R.string.show_grid_lines_description)
                                 )
                             }
-                            IconButton(onClick = {
-                                showFlashModes = true
-
-                            }) {
-                                Icon(imageVector = flashModeToIconRes(flashMode),
-                                    tint = Color.White,contentDescription = stringResource(R.string.change_flash_mode_content_description)
+                            IconButton(
+                                onClick = { showFlashModes = true },
+                                enabled = !isFrontCamera
+                            ) {
+                                Icon(
+                                    imageVector = flashModeToIconRes(flashMode),
+                                    tint = if (isFrontCamera) Color.White.copy(alpha = 0.3f) else Color.White,
+                                    contentDescription = stringResource(R.string.change_flash_mode_content_description)
                                 )
                             }
 

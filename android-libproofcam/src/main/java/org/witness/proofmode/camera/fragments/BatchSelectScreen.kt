@@ -39,6 +39,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -78,13 +79,13 @@ fun BatchSelectScreen(
             IconButton(onClick = onNavigateBack) {
                 Icon(
                     imageVector = ImageVector.vectorResource(R.drawable.baseline_close_24),
-                    contentDescription = "닫기",
+                    contentDescription = null,
                     tint = Color.White
                 )
             }
             Spacer(Modifier.weight(1f))
             Text(
-                "인증할 사진 선택",
+                stringResource(R.string.batch_select_title),
                 color = Color.White,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold
@@ -101,7 +102,7 @@ fun BatchSelectScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "${selected.size}장 선택됨  (최대 ${MAX_BATCH_SIZE}장)",
+                stringResource(R.string.batch_select_count, selected.size, MAX_BATCH_SIZE),
                 color = if (selectionFull) AccentGreen else Color(0xFF888888),
                 fontSize = 13.sp
             )
@@ -114,7 +115,7 @@ fun BatchSelectScreen(
                     .weight(1f),
                 contentAlignment = Alignment.Center
             ) {
-                Text("세션 사진이 없습니다.\n카메라로 먼저 촬영해주세요.", color = Color(0xFF888888), fontSize = 14.sp)
+                Text(stringResource(R.string.batch_select_empty), color = Color(0xFF888888), fontSize = 14.sp)
             }
         } else {
             LazyVerticalGrid(
@@ -207,8 +208,8 @@ fun BatchSelectScreen(
                 )
             ) {
                 Text(
-                    if (selected.isEmpty()) "사진을 선택해주세요"
-                    else "${selected.size}장 인증하기",
+                    if (selected.isEmpty()) stringResource(R.string.batch_select_btn_empty)
+                    else stringResource(R.string.batch_select_btn, selected.size),
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp
                 )

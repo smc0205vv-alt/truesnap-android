@@ -1,10 +1,17 @@
 package org.witness.proofmode
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
@@ -21,9 +28,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -31,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -40,9 +50,27 @@ import org.witness.proofmode.verify.VerifyActivity
 
 class HomeActivity : ComponentActivity() {
 
+    private val requestNotificationPermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* granted or denied — proceed silently either way */ }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // First launch → show onboarding, then come back here
+        if (!isOnboardingCompleted(this)) {
+            startActivity(Intent(this, TrueSnapOnboardingActivity::class.java))
+            finish()
+            return
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
 
         if (intent?.action == "org.witness.proofmode.OPEN_CAMERA") {
             launchCamera()
@@ -52,7 +80,8 @@ class HomeActivity : ComponentActivity() {
             MaterialTheme(colorScheme = darkColorScheme()) {
                 HomeScreen(
                     onOpenCamera = ::launchCamera,
-                    onOpenVerify = ::launchVerify
+                    onOpenVerify = ::launchVerify,
+                    onOpenMyCerts = ::launchMyCertifications
                 )
             }
         }
@@ -70,6 +99,10 @@ class HomeActivity : ComponentActivity() {
     private fun launchVerify() {
         startActivity(Intent(this, VerifyActivity::class.java))
     }
+
+    private fun launchMyCertifications() {
+        startActivity(Intent(this, MyCertificationsActivity::class.java))
+    }
 }
 
 private val AccentTeal = Color(0xFF3CCFC2)
@@ -78,7 +111,8 @@ private val TextSub = Color(0xFFAAAAAA)
 @Composable
 private fun HomeScreen(
     onOpenCamera: () -> Unit,
-    onOpenVerify: () -> Unit
+    onOpenVerify: () -> Unit,
+    onOpenMyCerts: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -110,7 +144,7 @@ private fun HomeScreen(
         Spacer(Modifier.height(24.dp))
 
         Text(
-            "실촬영 인증부터 수정 검증까지",
+            stringResource(R.string.home_subtitle),
             color = Color.White,
             fontSize = 16.sp,
             fontWeight = FontWeight.SemiBold,
@@ -120,7 +154,7 @@ private fun HomeScreen(
         Spacer(Modifier.height(10.dp))
 
         Text(
-            "AI도, 도용도, 수정도\n숨길 수 없습니다",
+            stringResource(R.string.home_tagline),
             color = TextSub,
             fontSize = 14.sp,
             fontWeight = FontWeight.Normal,
@@ -142,7 +176,7 @@ private fun HomeScreen(
             )
         ) {
             Text(
-                "촬영하기",
+                stringResource(R.string.action_take_photo),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -162,12 +196,33 @@ private fun HomeScreen(
             border = androidx.compose.foundation.BorderStroke(1.5.dp, AccentTeal)
         ) {
             Text(
-                "인증 확인하기",
+                stringResource(R.string.action_verify),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold
             )
         }
 
-        Spacer(Modifier.height(52.dp))
+        Spacer(Modifier.height(16.dp))
+
+        TextButton(
+            onClick = onOpenMyCerts,
+            modifier = Modifier.align(Alignment.CenterHorizontally)
+        ) {
+            Icon(
+                Icons.AutoMirrored.Outlined.List,
+                contentDescription = null,
+                tint = AccentTeal,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                stringResource(R.string.action_my_certs),
+                color = AccentTeal,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+
+        Spacer(Modifier.height(36.dp))
     }
 }

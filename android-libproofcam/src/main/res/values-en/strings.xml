@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- My Certifications screen -->
+    <string name="my_certs_title">My Certifications</string>
+    <string name="my_certs_empty_title">No certifications yet</string>
+    <string name="my_certs_empty_desc">Certifications will appear here once you complete the process.</string>
+    <string name="cert_status_expired">Expired</string>
+    <string name="cert_status_expires_today">Expires today</string>
+    <string name="cert_status_days_left">%d days left</string>
+    <string name="cert_label_capture_date">Capture time (UTC)</string>
+    <string name="cert_label_nickname">Name</string>
+    <string name="cert_label_expiry">Expires</string>
+    <string name="cert_expiry_with_days">%1$s (%2$d days left)</string>
+    <string name="cert_expiry_expired">%s (Expired)</string>
+    <string name="cert_qr_label">Verification QR</string>
+    <string name="cert_qr_hint">Scan at truesnap.app to verify this certification</string>
+    <string name="cert_extend_button">Extend (Free · +7 days)</string>
+    <string name="cert_extending">Extending…</string>
+    <string name="cert_extended_success">Certification extended by 7 days.</string>
+    <string name="cert_delete_button">Remove from list</string>
+    <string name="cert_close">Close</string>
+    <string name="cert_delete_title">Remove Certification</string>
+    <string name="cert_delete_message">Remove %s from your list?\nThe server record will be kept.</string>
+    <string name="cert_delete_confirm">Remove</string>
+    <string name="cert_delete_cancel">Cancel</string>
+    <string name="cert_verify_qr_label">Verification QR</string>
+
+    <!-- Batch select screen -->
+    <string name="batch_select_title">Select Photos to Certify</string>
+    <string name="batch_select_count">%1$d selected  (max %2$d)</string>
+    <string name="batch_select_empty">No photos in this session.\nTake some photos first.</string>
+    <string name="batch_select_btn_empty">Select photos to continue</string>
+    <string name="batch_select_btn">Certify %d photos</string>
+    <!-- Batch result screen -->
+    <string name="batch_share_done_count">%1$d / %2$d certified</string>
+    <string name="batch_share_fail_count">%d failed</string>
+    <string name="batch_share_chooser">Share all</string>
+    <string name="batch_share_btn_share_all">Share all (%d photos)</string>
+    <string name="batch_share_btn_save_all">Save all to gallery (%d photos)</string>
+    <string name="batch_share_btn_home">Back to home</string>
+    <string name="batch_item_certified">Certified</string>
+    <string name="batch_item_failed">Failed</string>
+    <string name="batch_saved_count">%d photos saved to gallery</string>
+    <!-- Certification share screen -->
+    <string name="cert_share_title">Certified</string>
+    <string name="cert_share_watermark_generating">Generating watermark…</string>
+    <string name="cert_share_watermark_failed">Watermark generation failed: %s</string>
+    <string name="cert_share_chooser">Share</string>
+    <string name="cert_share_btn_share">Share</string>
+    <string name="cert_share_btn_save">Save to gallery</string>
+    <string name="cert_share_btn_home">Back to home</string>
+    <string name="cert_share_save_ok">Saved to gallery (Pictures/TrueSnap)</string>
+    <string name="cert_share_save_fail_uri">Save failed (could not create URI)</string>
+    <string name="cert_share_save_fail">Save failed: %s</string>
+    <string name="perm_storage_denied">Storage permission denied</string>
+    <!-- Nickname input screen -->
+    <string name="nickname_title">Enter your display name</string>
+    <string name="nickname_cert_planned">Pending certification</string>
+    <string name="nickname_batch_count">%d photos</string>
+    <string name="nickname_auth_id_label">Certification ID</string>
+    <string name="nickname_cert_validity">This certification is valid for 7 days.</string>
+    <string name="nickname_privacy_detail">A summary of the photo is saved during certification — only a blurry approximation of color and composition. No person or object is identifiable, and the original cannot be reconstructed.</string>
+    <string name="nickname_recent_names">Recent names</string>
+    <string name="nickname_field_label">Display name</string>
+    <string name="nickname_uploading_batch">Certifying %1$d / %2$d…</string>
+    <string name="nickname_preparing">Preparing certification…</string>
+    <string name="nickname_watermark_fail">Watermark failed — retrying</string>
+    <string name="nickname_privacy_notice">🔒 TrueSnap never uploads your image to any server.</string>
+    <string name="nickname_uploading">Certifying…</string>
+    <string name="nickname_confirm_batch">Certify %d photos — edits locked after this</string>
+    <string name="nickname_confirm_single">Certify — edits locked after this</string>
+    <string name="nickname_error_title">Certification Failed</string>
+    <string name="nickname_error_retry_hint">You can retry, or skip for now and try again later.</string>
+    <string name="nickname_error_retry">Retry</string>
+    <string name="nickname_error_skip">Skip</string>
+    <!-- CameraViewModel errors -->
+    <string name="cert_vm_error_capture_not_found">Capture file not found</string>
+    <string name="cert_vm_error_decode_fail">Image decoding failed</string>
+    <string name="cert_vm_error_unknown">Unknown error</string>
+</resources>

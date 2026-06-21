@@ -4,8 +4,10 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import org.witness.proofmode.R
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.DecodeHintType
 import com.google.zxing.MultiFormatReader
@@ -54,7 +56,7 @@ data class VerifyUiState(
 // There is no code path from an externally-shared image to the certification
 // registration endpoint.
 // ═══════════════════════════════════════════════════════════════════════════════
-class VerifyViewModel : ViewModel() {
+class VerifyViewModel(application: android.app.Application) : AndroidViewModel(application) {
 
     private val _state = MutableStateFlow(VerifyUiState())
     val state: StateFlow<VerifyUiState> = _state
@@ -106,14 +108,14 @@ class VerifyViewModel : ViewModel() {
             null
         }
         if (bmp == null) {
-            _state.update { it.copy(qrDecoding = false, qrError = "이미지를 열 수 없습니다") }
+            _state.update { it.copy(qrDecoding = false, qrError = getApplication<android.app.Application>().getString(R.string.verify_error_cannot_open)) }
             return
         }
         val authId = decodeQrFromBitmap(bmp)
         bmp.recycle()
 
         if (authId == null) {
-            _state.update { it.copy(qrDecoding = false, qrError = "QR 코드를 찾을 수 없습니다. 사진에 TrueSnap 워터마크가 있는지 확인하세요.") }
+            _state.update { it.copy(qrDecoding = false, qrError = getApplication<android.app.Application>().getString(R.string.verify_error_qr_not_found)) }
             return
         }
 
@@ -134,7 +136,7 @@ class VerifyViewModel : ViewModel() {
     }
 
     private suspend fun runLookup(authId: String) {
-        val result = VerificationService().lookupRegistration(authId)
+        val result = VerificationService(getApplication()).lookupRegistration(authId)
         _state.update { it.copy(
             lookupLoading = false,
             lookupResult  = result.getOrNull(),
@@ -144,10 +146,10 @@ class VerifyViewModel : ViewModel() {
 
     private suspend fun runCompare(authId: String, imageBytes: ByteArray?) {
         if (imageBytes == null) {
-            _state.update { it.copy(compareLoading = false, compareError = "이미지를 읽을 수 없습니다") }
+            _state.update { it.copy(compareLoading = false, compareError = getApplication<android.app.Application>().getString(R.string.verify_error_cannot_read)) }
             return
         }
-        val result = VerificationService().compareImage(authId, imageBytes)
+        val result = VerificationService(getApplication()).compareImage(authId, imageBytes)
         _state.update { it.copy(
             compareLoading = false,
             compareResult  = result.getOrNull(),

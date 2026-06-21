@@ -48,11 +48,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import org.witness.proofmode.camera.R
 
 @Composable
 fun BatchShareScreen(
@@ -74,7 +76,7 @@ fun BatchShareScreen(
             pendingSaveAll = false
             performSaveAll(context, successItems)
         } else if (!granted) {
-            Toast.makeText(context, "저장 권한이 거부되었습니다", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, context.getString(R.string.perm_storage_denied), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -94,7 +96,7 @@ fun BatchShareScreen(
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
-                "${successItems.size} / ${items.size}건 인증 완료",
+                stringResource(R.string.batch_share_done_count, successItems.size, items.size),
                 color = AccentGreen,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold
@@ -102,7 +104,7 @@ fun BatchShareScreen(
             val failCount = items.size - successItems.size
             if (failCount > 0) {
                 Text(
-                    "${failCount}건 인증 실패",
+                    stringResource(R.string.batch_share_fail_count, failCount),
                     color = Color(0xFFFF6B6B),
                     fontSize = 13.sp
                 )
@@ -139,7 +141,7 @@ fun BatchShareScreen(
                             putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         }
-                        context.startActivity(Intent.createChooser(intent, "전체 공유"))
+                        context.startActivity(Intent.createChooser(intent, context.getString(R.string.batch_share_chooser)))
                     },
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(
@@ -147,7 +149,7 @@ fun BatchShareScreen(
                         contentColor   = Color.Black
                     )
                 ) {
-                    Text("전체 공유 (${successItems.size}장)", fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.batch_share_btn_share_all, successItems.size), fontWeight = FontWeight.Bold)
                 }
 
                 // Save all to gallery
@@ -163,7 +165,7 @@ fun BatchShareScreen(
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
                 ) {
-                    Text("갤러리에 모두 저장 (${successItems.size}장)")
+                    Text(stringResource(R.string.batch_share_btn_save_all, successItems.size))
                 }
             }
 
@@ -171,7 +173,7 @@ fun BatchShareScreen(
                 onClick = onDone,
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             ) {
-                Text("홈으로 돌아가기", color = Color(0xFF888888))
+                Text(stringResource(R.string.batch_share_btn_home), color = Color(0xFF888888))
             }
         }
     }
@@ -182,9 +184,9 @@ private fun performSaveAll(context: Context, successItems: List<BatchItem>) {
     successItems.forEach { item ->
         val bmp = item.watermarkBitmap ?: return@forEach
         val msg = saveToGallery(context, bmp, item.certDone.authId)
-        if (msg.contains("완료") || msg.contains("저장")) savedCount++
+        if (msg == context.getString(R.string.cert_share_save_ok)) savedCount++
     }
-    Toast.makeText(context, "${savedCount}장 갤러리에 저장됐습니다", Toast.LENGTH_LONG).show()
+    Toast.makeText(context, context.getString(R.string.batch_saved_count, savedCount), Toast.LENGTH_LONG).show()
 }
 
 @Composable
@@ -242,7 +244,7 @@ private fun BatchResultRow(item: BatchItem, context: Context) {
                         tint = AccentGreen,
                         modifier = Modifier.size(14.dp)
                     )
-                    Text("인증 완료", color = AccentGreen, fontSize = 12.sp)
+                    Text(stringResource(R.string.batch_item_certified), color = AccentGreen, fontSize = 12.sp)
                 }
             } else {
                 Row(
@@ -256,7 +258,7 @@ private fun BatchResultRow(item: BatchItem, context: Context) {
                         modifier = Modifier.size(14.dp)
                     )
                     Text(
-                        item.uploadError?.take(40) ?: "인증 실패",
+                        item.uploadError?.take(40) ?: stringResource(R.string.batch_item_failed),
                         color = Color(0xFFFF6B6B),
                         fontSize = 12.sp
                     )
@@ -273,13 +275,13 @@ private fun BatchResultRow(item: BatchItem, context: Context) {
                         putExtra(Intent.EXTRA_STREAM, item.shareUri)
                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     }
-                    context.startActivity(Intent.createChooser(intent, "공유하기"))
+                    context.startActivity(Intent.createChooser(intent, context.getString(R.string.cert_share_chooser)))
                 },
                 modifier = Modifier.size(36.dp)
             ) {
                 Icon(
                     Icons.Filled.Share,
-                    contentDescription = "공유",
+                    contentDescription = null,
                     tint = Color.White,
                     modifier = Modifier.size(20.dp)
                 )

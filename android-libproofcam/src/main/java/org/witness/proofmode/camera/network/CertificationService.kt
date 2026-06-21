@@ -772,6 +772,43 @@ class CertificationService {
         }
     }
 
+    // ---------------------------------------------------------------------------
+    // Free extend (beta — no payment)
+    // ---------------------------------------------------------------------------
+
+    /**
+     * Calls POST /api/extend/free/:authId to extend the server-side certification by 7 days.
+     * Returns the new expiry as epoch milliseconds, or null on failure.
+     * Blocking — run on an IO thread.
+     */
+    fun freeExtend(authId: String): Long? {
+        val url = "https://truesnap-production.up.railway.app/api/extend/free/$authId"
+        val client = OkHttpClient.Builder()
+            .connectTimeout(CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            .readTimeout(READ_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            .build()
+        val request = Request.Builder()
+            .url(url)
+            .addHeader("Authorization", "Bearer $API_KEY")
+            .post(ByteArray(0).toRequestBody("application/json".toMediaType()))
+            .build()
+        return try {
+            val response = client.newCall(request).execute()
+            if (!response.isSuccessful) {
+                Timber.w("freeExtend HTTP %d for authId=%s", response.code, authId)
+                return null
+            }
+            val body = response.body?.string() ?: return null
+            val json = org.json.JSONObject(body)
+            if (!json.optBoolean("success", false)) return null
+            val expiresAt = json.optString("expiresAt").takeIf { it.isNotBlank() } ?: return null
+            java.time.Instant.parse(expiresAt).toEpochMilli()
+        } catch (e: Exception) {
+            Timber.e(e, "freeExtend failed for authId=%s", authId)
+            null
+        }
+    }
+
     private fun uploadNetworkError(e: Throwable): String = when (e) {
         is java.net.SocketTimeoutException          -> "서버 응답 시간이 초과됐습니다. 재시도해주세요."
         is java.net.ConnectException                -> "서버에 연결할 수 없습니다. 인터넷 연결을 확인해주세요."

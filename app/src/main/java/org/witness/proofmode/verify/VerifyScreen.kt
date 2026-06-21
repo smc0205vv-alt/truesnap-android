@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -92,12 +93,12 @@ fun VerifyScreen(
             IconButton(onClick = onNavigateBack) {
                 Icon(
                     imageVector = ImageVector.vectorResource(R.drawable.ic_close_black_24dp),
-                    contentDescription = "닫기",
+                    contentDescription = stringResource(R.string.close),
                     tint = TextPrimary
                 )
             }
             Spacer(Modifier.weight(1f))
-            Text("사진으로 인증 확인", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.verify_title), color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.weight(1f))
             Spacer(Modifier.width(48.dp))
         }
@@ -111,18 +112,18 @@ fun VerifyScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("인증 확인 방법", color = AccentGreen, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.verify_guide_title), color = AccentGreen, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             GuideStep(
                 step = "1",
-                text = "촬영자에게 받은 사진, 또는 캡처한 사진을 저장하거나 앱으로 공유해주세요."
+                text = stringResource(R.string.verify_guide_step1)
             )
             GuideStep(
                 step = "2",
-                text = "아래 '사진 선택' 버튼을 눌러 저장한 사진을 고르세요. 사진 속 코드를 자동으로 읽어 인증 정보를 조회합니다."
+                text = stringResource(R.string.verify_guide_step2)
             )
             GuideStep(
                 step = "3",
-                text = "1단계(등록 여부)와 2단계(위변조 비교) 결과를 확인하세요."
+                text = stringResource(R.string.verify_guide_step3)
             )
         }
 
@@ -144,8 +145,8 @@ fun VerifyScreen(
             )
         ) {
             Text(
-                if (state.imageUri == null) "갤러리에서 사진 선택하기"
-                else "다른 사진 선택하기",
+                if (state.imageUri == null) stringResource(R.string.verify_btn_pick)
+                else stringResource(R.string.verify_btn_pick_other),
                 fontWeight = FontWeight.Bold
             )
         }
@@ -164,7 +165,7 @@ fun VerifyScreen(
             ) {
                 AsyncImage(
                     model          = state.imageUri,
-                    contentDescription = "선택된 사진",
+                    contentDescription = null,
                     contentScale   = ContentScale.Crop,
                     modifier       = Modifier
                         .size(88.dp)
@@ -180,11 +181,11 @@ fun VerifyScreen(
                                     strokeWidth = 2.dp
                                 )
                                 Spacer(Modifier.width(8.dp))
-                                Text("QR 코드 인식 중…", color = TextSecondary, fontSize = 13.sp)
+                                Text(stringResource(R.string.verify_qr_decoding), color = TextSecondary, fontSize = 13.sp)
                             }
                         }
                         state.authId != null -> {
-                            Text("QR 인식 성공", color = AccentGreen, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.verify_qr_success), color = AccentGreen, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                             Text(
                                 state.authId!!,
                                 color = TextPrimary,
@@ -195,8 +196,8 @@ fun VerifyScreen(
                             )
                         }
                         state.qrError != null -> {
-                            Text("✗ QR 인식 실패", color = ErrorRed, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                            Text("코드를 찾을 수 없습니다. 직접 입력해주세요.", color = TextSecondary, fontSize = 12.sp)
+                            Text(stringResource(R.string.verify_qr_fail), color = ErrorRed, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.verify_qr_fail_hint), color = TextSecondary, fontSize = 12.sp)
                         }
                     }
                 }
@@ -219,8 +220,8 @@ fun VerifyScreen(
             if (state.authId != null) {
                 Spacer(Modifier.height(16.dp))
                 VerifyStageCard(
-                    stageNumber = "1단계",
-                    stageLabel  = "등록 확인",
+                    stageNumber = stringResource(R.string.verify_stage1_number),
+                    stageLabel  = stringResource(R.string.verify_stage1_label),
                     loading     = state.lookupLoading,
                     content     = {
                         when {
@@ -232,12 +233,12 @@ fun VerifyScreen(
                 )
                 Spacer(Modifier.height(12.dp))
                 VerifyStageCard(
-                    stageNumber = "2단계",
-                    stageLabel  = "위변조 비교",
+                    stageNumber = stringResource(R.string.verify_stage2_number),
+                    stageLabel  = stringResource(R.string.verify_stage2_label),
                     loading     = state.compareLoading,
                     content     = {
                         Text(
-                            "인증 후 사진이 크게 바뀌었는지 확인합니다. 작은 편집은 감지되지 않을 수 있으니 이 결과만으로 100% 신뢰하지 마세요.",
+                            stringResource(R.string.verify_stage2_disclaimer),
                             color = TextSecondary,
                             fontSize = 11.sp,
                             lineHeight = 16.sp
@@ -322,15 +323,15 @@ private fun VerifyStageCard(
 @Composable
 private fun LookupResultContent(r: VerificationService.LookupResult) {
     if (!r.registered) {
-        StatusRow(ok = false, text = "미등록 인증ID — 서버에 등록된 인증이 없습니다")
+        StatusRow(ok = false, text = stringResource(R.string.verify_lookup_unregistered))
         return
     }
-    StatusRow(ok = true, text = "인증 등록됨")
+    StatusRow(ok = true, text = stringResource(R.string.verify_lookup_registered))
     if (!r.captureTimeUtc.isNullOrBlank()) {
-        DetailRow(label = "촬영일시 (UTC)", value = r.captureTimeUtc)
+        DetailRow(label = stringResource(R.string.verify_label_capture_utc), value = r.captureTimeUtc)
     }
     if (!r.nickname.isNullOrBlank()) {
-        DetailRow(label = "등록 닉네임", value = r.nickname)
+        DetailRow(label = stringResource(R.string.verify_label_nickname), value = r.nickname)
     }
 }
 
@@ -341,23 +342,23 @@ private fun CompareResultContent(r: VerificationService.CompareResult) {
         "identical" -> VerdictUi(
             icon     = "✓",
             color    = AccentGreen,
-            title    = "인증 당시 사진 그대로입니다",
-            subtitle = "이 사진은 TrueSnap으로 촬영된 이후 변경되지 않았습니다."
+            title    = stringResource(R.string.verify_verdict_identical_title),
+            subtitle = stringResource(R.string.verify_verdict_identical_sub)
         )
         "minor_edit" -> VerdictUi(
             icon     = "✓",
             color    = AccentGreen,
-            title    = "인증 후 일부 수정이 감지됐습니다",
+            title    = stringResource(R.string.verify_verdict_minor_title),
             subtitle = ""
         )
         "tampered", "suspicious" -> VerdictUi(
             icon     = "✗",
             color    = ErrorRed,
-            title    = "인증 후 상당한 수정이 감지됐습니다",
+            title    = stringResource(R.string.verify_verdict_tampered_title),
             subtitle = ""
         )
-        "unknown" -> VerdictUi("?", TextSecondary, "pHash 미등록 — 비교 불가")
-        else      -> VerdictUi("?", TextSecondary, "결과 알 수 없음")
+        "unknown" -> VerdictUi("?", TextSecondary, stringResource(R.string.verify_verdict_unknown))
+        else      -> VerdictUi("?", TextSecondary, stringResource(R.string.verify_verdict_other))
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -370,7 +371,7 @@ private fun CompareResultContent(r: VerificationService.CompareResult) {
             }
         }
         Text(
-            "이 결과는 참고용입니다. 참고해 직접 한 번 더 확인해보세요.",
+            stringResource(R.string.verify_compare_disclaimer),
             color = TextSecondary,
             fontSize = 11.sp,
             lineHeight = 16.sp
@@ -422,14 +423,14 @@ private fun ManualAuthIdCard(
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Text(
-            "코드 직접 입력",
+            stringResource(R.string.verify_manual_title),
             color = AccentGreen,
             fontSize = 13.sp,
             fontWeight = FontWeight.Bold
         )
         HorizontalDivider(color = Color(0xFF2A2A2A))
         Text(
-            "사진에 표시된 코드를 직접 입력하세요.",
+            stringResource(R.string.verify_manual_hint),
             color = TextSecondary,
             fontSize = 12.sp,
             lineHeight = 17.sp
@@ -464,7 +465,7 @@ private fun ManualAuthIdCard(
                     disabledContentColor   = TextSecondary
                 )
             ) {
-                Text("확인", fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.verify_manual_confirm), fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -474,6 +475,6 @@ private fun ManualAuthIdCard(
 private fun ErrorRow(message: String) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         Text("⚠", color = WarnYellow, fontSize = 14.sp)
-        Text("조회 실패: $message", color = TextSecondary, fontSize = 12.sp)
+        Text(stringResource(R.string.verify_error_prefix, message), color = TextSecondary, fontSize = 12.sp)
     }
 }

@@ -61,6 +61,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.witness.proofmode.ProofMode
 import org.witness.proofmode.camera.CameraActivity
+import org.witness.proofmode.camera.R
 import org.witness.proofmode.camera.adapter.Media
 import org.witness.proofmode.camera.fragments.CameraConstants.NEW_MEDIA_EVENT
 import org.witness.proofmode.camera.network.CertificationService
@@ -702,7 +703,7 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
      */
     fun generateWatermark(authId: String) {
         val mediaUri = _lastCapturedMedia.value?.uri ?: run {
-            _watermarkState.value = WatermarkState.Failed("캡처 파일을 찾을 수 없습니다")
+            _watermarkState.value = WatermarkState.Failed(app.getString(R.string.cert_vm_error_capture_not_found))
             return
         }
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
@@ -713,7 +714,7 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                 } else {
                     app.contentResolver.openInputStream(mediaUri)
                         ?.use { android.graphics.BitmapFactory.decodeStream(it) }
-                } ?: throw Exception("이미지 디코딩 실패")
+                } ?: throw Exception(app.getString(R.string.cert_vm_error_decode_fail))
                 val watermarked = WatermarkComposer.compose(photo, authId)
                 photo.recycle()
 
@@ -768,7 +769,7 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                 _watermarkState.value = WatermarkState.Ready(watermarked, shareUri)
             } catch (e: Exception) {
                 Timber.e(e, "Watermark generation failed")
-                _watermarkState.value = WatermarkState.Failed(e.message ?: "알 수 없는 오류")
+                _watermarkState.value = WatermarkState.Failed(e.message ?: app.getString(R.string.cert_vm_error_unknown))
             }
         }
     }
@@ -921,7 +922,7 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                     } else {
                         app.contentResolver.openInputStream(itemUri)
                             ?.use { android.graphics.BitmapFactory.decodeStream(it) }
-                    } ?: throw Exception("이미지 디코딩 실패")
+                    } ?: throw Exception(app.getString(R.string.cert_vm_error_decode_fail))
                     val watermarked = WatermarkComposer.compose(photo, item.certDone.authId)
                     photo.recycle()
                     watermarkBitmap = watermarked
@@ -976,7 +977,7 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                     }
                 } catch (e: Exception) {
                     Timber.e(e, "Batch upload failed for authId=%s", item.certDone.authId)
-                    uploadError = e.message ?: "알 수 없는 오류"
+                    uploadError = e.message ?: app.getString(R.string.cert_vm_error_unknown)
                 }
 
                 results.add(item.copy(

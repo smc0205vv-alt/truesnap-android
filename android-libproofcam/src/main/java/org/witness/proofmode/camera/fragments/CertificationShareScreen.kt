@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.widget.Toast
+import org.witness.proofmode.camera.R
 import timber.log.Timber
 
 @Composable
@@ -73,8 +74,8 @@ fun CertificationShareScreen(
             saveMessage = msg
             Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
         } else {
-            saveMessage = "저장 권한이 거부되었습니다"
-            Toast.makeText(context, "저장 권한이 거부되었습니다", Toast.LENGTH_SHORT).show()
+            saveMessage = context.getString(R.string.perm_storage_denied)
+            Toast.makeText(context, context.getString(R.string.perm_storage_denied), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -94,7 +95,7 @@ fun CertificationShareScreen(
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
-                "인증 완료",
+                context.getString(R.string.cert_share_title),
                 color = AccentGreen,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold
@@ -124,20 +125,20 @@ fun CertificationShareScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         CircularProgressIndicator(color = AccentGreen)
                         Spacer(Modifier.height(12.dp))
-                        Text("워터마크 생성 중…", color = Color.White, fontSize = 14.sp)
+                        Text(context.getString(R.string.cert_share_watermark_generating), color = Color.White, fontSize = 14.sp)
                     }
                 }
                 is WatermarkState.Ready -> {
                     Image(
                         bitmap = state.bitmap.asImageBitmap(),
-                        contentDescription = "인증 워터마크 이미지",
+                        contentDescription = null,
                         contentScale = ContentScale.FillWidth,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
                 is WatermarkState.Failed -> {
                     Text(
-                        "워터마크 생성 실패: ${state.error}",
+                        context.getString(R.string.cert_share_watermark_failed, state.error),
                         color = Color(0xFFFF6B6B),
                         modifier = Modifier.padding(16.dp)
                     )
@@ -149,7 +150,7 @@ fun CertificationShareScreen(
         if (saveMessage != null) {
             Text(
                 saveMessage!!,
-                color = if (saveMessage!!.contains("완료") || saveMessage!!.contains("저장")) AccentGreen
+                color = if (saveMessage == context.getString(R.string.cert_share_save_ok)) AccentGreen
                         else Color(0xFFFF6B6B),
                 fontSize = 13.sp,
                 modifier = Modifier
@@ -176,7 +177,7 @@ fun CertificationShareScreen(
                             putExtra(Intent.EXTRA_STREAM, state.shareUri)
                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         }
-                        context.startActivity(Intent.createChooser(intent, "공유하기"))
+                        context.startActivity(Intent.createChooser(intent, context.getString(R.string.cert_share_chooser)))
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -188,7 +189,7 @@ fun CertificationShareScreen(
                     disabledContentColor   = Color(0xFF555555)
                 )
             ) {
-                Text("공유하기", fontWeight = FontWeight.Bold)
+                Text(context.getString(R.string.cert_share_btn_share), fontWeight = FontWeight.Bold)
             }
 
             // Save to gallery
@@ -208,14 +209,14 @@ fun CertificationShareScreen(
                 enabled = readyState != null,
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
             ) {
-                Text("갤러리에 저장")
+                Text(context.getString(R.string.cert_share_btn_save))
             }
 
             TextButton(
                 onClick = onDone,
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             ) {
-                Text("홈으로 돌아가기", color = Color(0xFF888888))
+                Text(context.getString(R.string.cert_share_btn_home), color = Color(0xFF888888))
             }
         }
     }
@@ -235,7 +236,7 @@ internal fun saveToGallery(context: Context, bitmap: Bitmap, authId: String): St
     }
     val resolver = context.contentResolver
     val uri: Uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-        ?: return "갤러리 저장 실패 (URI 생성 오류)"
+        ?: return context.getString(R.string.cert_share_save_fail_uri)
     return try {
         resolver.openOutputStream(uri)?.use { out ->
             bitmap.compress(Bitmap.CompressFormat.JPEG, 95, out)
@@ -245,10 +246,10 @@ internal fun saveToGallery(context: Context, bitmap: Bitmap, authId: String): St
             values.put(MediaStore.Images.Media.IS_PENDING, 0)
             resolver.update(uri, values, null, null)
         }
-        "갤러리 저장 완료 (Pictures/TrueSnap)"
+        context.getString(R.string.cert_share_save_ok)
     } catch (e: Exception) {
         Timber.e(e, "Failed to save watermarked image to gallery")
         resolver.delete(uri, null, null)
-        "갤러리 저장 실패: ${e.message?.take(50)}"
+        context.getString(R.string.cert_share_save_fail, e.message?.take(50) ?: "")
     }
 }

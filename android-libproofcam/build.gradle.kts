@@ -99,4 +99,14 @@ dependencies {
     // EXIF orientation correction when loading captured JPEGs
     implementation(libs.androidx.exifinterface)
 
+    // UCrop — crop UI for the photo edit screen
+    implementation(libs.ucrop)
+
+    // Extended Material Icons (Crop, RotateRight, Flip) for photo edit controls
+    implementation(libs.androidx.compose.material.icons.extended)
+
+    // Room — local certification history
+    implementation(libs.bundles.room)
+    ksp(libs.androidx.room.compiler)
+
 }
