@@ -719,7 +719,7 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                     app.contentResolver.openInputStream(mediaUri)
                         ?.use { android.graphics.BitmapFactory.decodeStream(it) }
                 } ?: throw Exception(app.getString(R.string.cert_vm_error_decode_fail))
-                val watermarked = WatermarkComposer.compose(photo, authId)
+                val watermarked = WatermarkComposer.compose(photo, authId, app)
                 photo.recycle()
 
                 // Compress watermarked bitmap to JPEG bytes at fixed quality=95.
@@ -936,7 +936,7 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                         app.contentResolver.openInputStream(itemUri)
                             ?.use { android.graphics.BitmapFactory.decodeStream(it) }
                     } ?: throw Exception(app.getString(R.string.cert_vm_error_decode_fail))
-                    val watermarked = WatermarkComposer.compose(photo, item.certDone.authId)
+                    val watermarked = WatermarkComposer.compose(photo, item.certDone.authId, app)
                     photo.recycle()
                     watermarkBitmap = watermarked
 

@@ -1,11 +1,13 @@
 package org.witness.proofmode.camera.fragments
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Typeface
+import android.os.Build
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
@@ -32,7 +34,13 @@ object WatermarkComposer {
      *   └──────────────────┴──────────────────────────────────────────┴────────────────────────┘
      *   Background: #10141b · "Snap" and authId in #3ccfc2 (mint)
      */
-    fun compose(photo: Bitmap, authId: String): Bitmap {
+    fun compose(photo: Bitmap, authId: String, context: Context): Bitmap {
+        val isKorean = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N)
+            context.resources.configuration.locales[0].language == "ko"
+        else
+            @Suppress("DEPRECATION")
+            context.resources.configuration.locale.language == "ko"
+
         val W = photo.width
         val H = photo.height
 
@@ -97,8 +105,9 @@ object WatermarkComposer {
         canvas.drawText("Snap", wordmarkStartX + trueW, wordmarkBaseline, snapPaint)
 
         // ── CENTER: two guide lines, vertically centered ──────────────────────
-        val guide1 = "TrueSnap 실제 촬영 인증 사진"
-        val guide2 = "직접 찍은 사진인지, 수정됐는지 https://truesnap.app에서 확인하세요"
+        val guide1 = if (isKorean) "TrueSnap 실제 촬영 인증 사진" else "TrueSnap Certified Photo"
+        val guide2 = if (isKorean) "직접 찍은 사진인지, 수정됐는지 https://truesnap.app에서 확인하세요"
+                     else "Check if it's real or edited at https://truesnap.app"
         val centerAvailW = (rightColL - centerColX - 2 * pad).coerceAtLeast(1f)
 
         val guidePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
