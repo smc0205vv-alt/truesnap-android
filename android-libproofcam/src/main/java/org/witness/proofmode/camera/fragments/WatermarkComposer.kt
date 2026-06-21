@@ -22,14 +22,14 @@ object WatermarkComposer {
     private val DARK_CHECK = Color.parseColor("#0c1117")
 
     /**
-     * Watermark strip layout (2 sections, both vertically centered at strip midpoint):
+     * 3-column strip (left → center → right), all vertically centered:
      *
-     *   ┌───────────────────────────────────────────────────┬───────────────────────────┐
-     *   │  [ICON]  True(white)Snap(mint)                    │   TS-XXXXXX  (mint)       │
-     *   │  TrueSnap 실제 촬영 인증 사진                      │  ┌─────────────────────┐  │
-     *   │  직접 찍은 사진인지, 수정됐는지                    │  │       QR code       │  │
-     *   │  https://truesnap.app에서 확인하세요               │  └─────────────────────┘  │
-     *   └───────────────────────────────────────────────────┴───────────────────────────┘
+     *   ┌──────────────────┬──────────────────────────────────────────┬────────────────────────┐
+     *   │   [logo icon]    │  TrueSnap 실제 촬영 인증 사진             │  TS-XXXXXX  (mint)     │
+     *   │  True·Snap       │  직접 찍은 사진인지, 수정됐는지            │  ┌──────────────────┐  │
+     *   │  (white/mint)    │  https://truesnap.app에서 확인하세요       │  │     QR code      │  │
+     *   │                  │                                          │  └──────────────────┘  │
+     *   └──────────────────┴──────────────────────────────────────────┴────────────────────────┘
      *   Background: #10141b · "Snap" and authId in #3ccfc2 (mint)
      */
     fun compose(photo: Bitmap, authId: String): Bitmap {
@@ -39,97 +39,91 @@ object WatermarkComposer {
         val stripH = (H * 0.15f).toInt().coerceIn(180, 600)
         val pad    = (stripH * 0.07f).toInt().coerceAtLeast(8)
 
+        val leftColW  = (W * 0.22f).toInt()
         val rightColW = (W * 0.28f).toInt()
+        val rightColL = (W - rightColW).toFloat()
+        val centerColX = leftColW.toFloat()
 
         val result = Bitmap.createBitmap(W, H + stripH, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(result)
 
         canvas.drawBitmap(photo, 0f, 0f, null)
 
-        // Strip background
         canvas.drawRect(0f, H.toFloat(), W.toFloat(), (H + stripH).toFloat(),
             Paint().apply { color = BG_COLOR })
 
         val stripMidY = H.toFloat() + stripH * 0.5f
 
-        // ── Compute base sizes ───────────────────────────────────────────────
-        val wordmarkSz = (stripH * 0.30f).coerceIn(20f, 100f)
-        val guideSz    = (wordmarkSz * 0.44f).coerceIn(12f, 50f)
-        val lineGap    = guideSz * 0.35f
+        val boldTyp   = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        val normalTyp = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
 
-        // ── Paints ───────────────────────────────────────────────────────────
-        val boldTyp = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        // ── LEFT: logo icon (top) + True·Snap wordmark (bottom), centered ───
+        val leftAvailW = (leftColW - 2 * pad).toFloat()
+        val iconDiam   = minOf(leftAvailW, stripH * 0.38f)
+        val iconR      = iconDiam * 0.5f
+        val iconGapV   = iconDiam * 0.10f
+
         val truePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color    = Color.WHITE
             typeface = boldTyp
-            textSize = wordmarkSz
+            textSize = (iconDiam * 0.85f).coerceIn(14f, 80f)
         }
         val snapPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color    = MINT
             typeface = boldTyp
-            textSize = wordmarkSz
+            textSize = truePaint.textSize
         }
-        val guidePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color    = Color.WHITE
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            textSize = guideSz
-        }
-
-        val guide1 = "TrueSnap 실제 촬영 인증 사진"
-        val guide2 = "직접 찍은 사진인지, 수정됐는지 https://truesnap.app에서 확인하세요"
-
-        // Available width for left area content
-        val guideAvailW = (W - rightColW - 2 * pad).toFloat()
-
-        // Scale guide text if it overflows
-        val maxGW = maxOf(guidePaint.measureText(guide1), guidePaint.measureText(guide2))
-        if (maxGW > guideAvailW) {
-            guidePaint.textSize = guidePaint.textSize * guideAvailW / maxGW
-        }
-
-        // Scale wordmark (icon + True + Snap) if it overflows
-        val iconR0     = wordmarkSz * 0.48f
-        val iconGap0   = wordmarkSz * 0.14f
-        val wLineW = iconR0 * 2 + iconGap0 + truePaint.measureText("True") + snapPaint.measureText("Snap")
-        if (wLineW > guideAvailW) {
-            val sc = guideAvailW / wLineW
+        val totalWordmarkW0 = truePaint.measureText("True") + snapPaint.measureText("Snap")
+        if (totalWordmarkW0 > leftAvailW) {
+            val sc = leftAvailW / totalWordmarkW0
             truePaint.textSize *= sc
             snapPaint.textSize *= sc
         }
+        val wSize    = truePaint.textSize
+        val trueW    = truePaint.measureText("True")
+        val snapW    = snapPaint.measureText("Snap")
+        val wordmarkW = trueW + snapW
 
-        val actualWSz  = truePaint.textSize
-        val actualIconR = actualWSz * 0.48f
-        val actualIconGap = actualWSz * 0.14f
+        val leftBlockH   = iconDiam + iconGapV + wSize
+        val leftBlockTopY = stripMidY - leftBlockH * 0.5f
 
-        // ── LEFT BLOCK vertical centering ────────────────────────────────────
-        val totalBlockH = actualWSz + lineGap + guidePaint.textSize * 1.35f + guidePaint.textSize
-        val blockTopY   = stripMidY - totalBlockH * 0.5f
+        val iconCX = pad.toFloat() + iconR
+        val iconCY = leftBlockTopY + iconR
+        drawLogoIcon(canvas, iconCX, iconCY, iconR)
 
-        // Draw logo icon
-        val iconCX = pad.toFloat() + actualIconR
-        val iconCY = blockTopY + actualWSz * 0.5f
-        drawLogoIcon(canvas, iconCX, iconCY, actualIconR)
+        val wordmarkStartX = pad.toFloat() + (leftAvailW - wordmarkW) * 0.5f
+        val wordmarkBaseline = leftBlockTopY + iconDiam + iconGapV + wSize * 0.82f
+        canvas.drawText("True", wordmarkStartX, wordmarkBaseline, truePaint)
+        canvas.drawText("Snap", wordmarkStartX + trueW, wordmarkBaseline, snapPaint)
 
-        // Draw wordmark: True (white) + Snap (mint)
-        val wordmarkX    = iconCX + actualIconR + actualIconGap
-        val wordBaseline = blockTopY + actualWSz * 0.82f
-        val trueW = truePaint.measureText("True")
-        canvas.drawText("True", wordmarkX, wordBaseline, truePaint)
-        canvas.drawText("Snap", wordmarkX + trueW, wordBaseline, snapPaint)
+        // ── CENTER: two guide lines, vertically centered ──────────────────────
+        val guide1 = "TrueSnap 실제 촬영 인증 사진"
+        val guide2 = "직접 찍은 사진인지, 수정됐는지 https://truesnap.app에서 확인하세요"
+        val centerAvailW = (rightColL - centerColX - 2 * pad).coerceAtLeast(1f)
 
-        // Draw guide lines
-        val g1Y = blockTopY + actualWSz + lineGap + guidePaint.textSize
-        val g2Y = g1Y + guidePaint.textSize * 1.35f
-        canvas.drawText(guide1, pad.toFloat(), g1Y, guidePaint)
-        canvas.drawText(guide2, pad.toFloat(), g2Y, guidePaint)
+        val guidePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color    = Color.WHITE
+            typeface = normalTyp
+            textSize = (stripH * 0.15f).coerceIn(12f, 56f)
+        }
+        val maxGW = maxOf(guidePaint.measureText(guide1), guidePaint.measureText(guide2))
+        if (maxGW > centerAvailW) {
+            guidePaint.textSize = guidePaint.textSize * centerAvailW / maxGW
+        }
+        val lineStep    = guidePaint.textSize * 1.45f
+        val guidesBlockH = guidePaint.textSize + lineStep
+        val g1Y = stripMidY - guidesBlockH * 0.5f + guidePaint.textSize
+        val g2Y = g1Y + lineStep
+        canvas.drawText(guide1, centerColX + pad, g1Y, guidePaint)
+        canvas.drawText(guide2, centerColX + pad, g2Y, guidePaint)
 
-        // ── RIGHT BLOCK: authId (mint) + QR, vertically centered ─────────────
-        val rightColL = (W - rightColW).toFloat()
+        // ── RIGHT: authId (mint) + QR, vertically centered ───────────────────
+        val authIdRowH = (stripH * 0.22f).toInt()
         val authIdPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color          = MINT
             typeface       = Typeface.MONOSPACE
             isFakeBoldText = true
-            textSize       = (actualWSz * 0.60f).coerceIn(12f, 60f)
+            textSize       = (authIdRowH * 0.68f).coerceIn(12f, 60f)
         }
         val authIdMaxW = (rightColW - 2 * pad).toFloat()
         val authIdMeasured = authIdPaint.measureText(authId)
@@ -138,16 +132,14 @@ object WatermarkComposer {
         }
         val authIdActualW = authIdPaint.measureText(authId)
 
-        val qrAvailH = (stripH - 2 * pad - authIdPaint.textSize - lineGap).toInt()
-        val qrAvailW = (rightColW - 2 * pad).toInt()
-        val qrSize   = minOf(qrAvailH, qrAvailW).coerceAtLeast(32)
+        val qrAvailH = stripH - authIdRowH - 2 * pad
+        val qrSize   = minOf(qrAvailH, rightColW - 2 * pad).coerceAtLeast(32)
         val qrBgPad  = maxOf(3, qrSize / 32)
         val qrBmp    = generateQrBitmap("$VERIFY_BASE_URL/$authId", qrSize)
 
-        val rightBlockH  = authIdPaint.textSize + lineGap + (qrSize + qrBgPad * 2).toFloat()
+        val rightBlockH    = authIdPaint.textSize + (qrSize + qrBgPad * 2).toFloat() + pad * 0.5f
         val rightBlockTopY = stripMidY - rightBlockH * 0.5f
 
-        // authId horizontally centered in right column
         canvas.drawText(
             authId,
             rightColL + (rightColW - authIdActualW) * 0.5f,
@@ -156,7 +148,7 @@ object WatermarkComposer {
         )
 
         val qrLeft = (rightColL + (rightColW - qrSize) / 2f).toInt()
-        val qrTop  = (rightBlockTopY + authIdPaint.textSize + lineGap).toInt()
+        val qrTop  = (rightBlockTopY + authIdPaint.textSize + pad * 0.5f).toInt()
         canvas.drawRect(
             (qrLeft - qrBgPad).toFloat(), (qrTop - qrBgPad).toFloat(),
             (qrLeft + qrSize + qrBgPad).toFloat(), (qrTop + qrSize + qrBgPad).toFloat(),
@@ -168,24 +160,20 @@ object WatermarkComposer {
     }
 
     private fun drawLogoIcon(canvas: Canvas, cx: Float, cy: Float, r: Float) {
-        // Outer ring: mint
         canvas.drawCircle(cx, cy, r, Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color       = MINT
             style       = Paint.Style.STROKE
             strokeWidth = r * 0.10f
         })
-        // Middle ring: dark (aperture effect)
         canvas.drawCircle(cx, cy, r * 0.56f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color       = DARK_RING
             style       = Paint.Style.STROKE
             strokeWidth = r * 0.08f
         })
-        // Inner filled dot
         canvas.drawCircle(cx, cy, r * 0.22f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = DARK_INNER
             style = Paint.Style.FILL
         })
-        // Bottom-right check badge
         val badgeR = r * 0.40f
         val bCX    = cx + r * 0.82f
         val bCY    = cy + r * 0.82f
