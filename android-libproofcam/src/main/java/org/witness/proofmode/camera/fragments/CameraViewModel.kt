@@ -719,8 +719,10 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                     app.contentResolver.openInputStream(mediaUri)
                         ?.use { android.graphics.BitmapFactory.decodeStream(it) }
                 } ?: throw Exception(app.getString(R.string.cert_vm_error_decode_fail))
+                val tWm0 = System.currentTimeMillis()
                 val watermarked = WatermarkComposer.compose(photo, authId, app)
                 photo.recycle()
+                Timber.d("[PERF] watermark compose: ${System.currentTimeMillis() - tWm0}ms")
 
                 // Compress watermarked bitmap to JPEG bytes at fixed quality=95.
                 // These bytes are the canonical final image — use them for both
@@ -742,12 +744,18 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                 // Compute all fingerprints from the final watermarked image.
                 // Nothing is sent to the server except these computed values — no image upload.
                 val service = CertificationService()
-                val sha256        = service.calculateSha256(wmBytes)
-                val pHash         = service.calculatePHash(wmBytes)
-                val cropHashes    = service.calculateBlockHashes(wmBytes)
+                val sha256     = service.calculateSha256(wmBytes)
+                val pHash      = service.calculatePHash(wmBytes)
+                val cropHashes = service.calculateBlockHashes(wmBytes)
+                val tEdge0 = System.currentTimeMillis()
                 val edgeDensities = service.calculateEdgeDensities(wmBytes)
-                val edgeHog       = service.calculateEdgeHOG(wmBytes)
-                val edgeStdDev    = service.calculateEdgeStdDev(wmBytes)
+                Timber.d("[PERF] edgeDensities: ${System.currentTimeMillis() - tEdge0}ms")
+                val tHog0 = System.currentTimeMillis()
+                val edgeHog = service.calculateEdgeHOG(wmBytes)
+                Timber.d("[PERF] edgeHOG: ${System.currentTimeMillis() - tHog0}ms")
+                val tStd0 = System.currentTimeMillis()
+                val edgeStdDev = service.calculateEdgeStdDev(wmBytes)
+                Timber.d("[PERF] edgeStdDev: ${System.currentTimeMillis() - tStd0}ms")
                 val thumbnail32   = service.generateThumbnail32(watermarked)
                 Timber.d("Watermark fingerprints: sha256=%s pHash=%s blocks=%d edges=%s hog=%s stddev=%s thumb=%s",
                     sha256, pHash, cropHashes?.size ?: 0,
@@ -810,8 +818,10 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                 edgeStdDev          = edgeStdDev
             )
             val service = CertificationService()
+            val tUp0 = System.currentTimeMillis()
             _uploadState.value = when (val result = service.uploadMetadata(request)) {
                 is CertificationService.MetadataUploadResult.Success -> {
+                    Timber.d("[PERF] uploadMetadata: ${System.currentTimeMillis() - tUp0}ms")
                     deleteMedia(_lastCapturedMedia.value)
                     certificationDao.insert(CertificationRecord(
                         authId             = result.authId,
@@ -823,7 +833,11 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                     // Overwrite Kotlin-computed hashes with Node.js-computed values so
                     // registration and verification use the same algorithm (no false positives).
                     val wmFile = File(app.cacheDir, "wm_share_${result.authId}.jpg")
-                    if (wmFile.exists()) service.registerCropHashes(result.authId, wmFile.readBytes())
+                    if (wmFile.exists()) {
+                        val tCh0 = System.currentTimeMillis()
+                        service.registerCropHashes(result.authId, wmFile.readBytes())
+                        Timber.d("[PERF] registerCropHashes: ${System.currentTimeMillis() - tCh0}ms")
+                    }
                     UploadState.Success(result.authId)
                 }
                 is CertificationService.MetadataUploadResult.Failure ->
@@ -936,9 +950,11 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                         app.contentResolver.openInputStream(itemUri)
                             ?.use { android.graphics.BitmapFactory.decodeStream(it) }
                     } ?: throw Exception(app.getString(R.string.cert_vm_error_decode_fail))
+                    val tWmB0 = System.currentTimeMillis()
                     val watermarked = WatermarkComposer.compose(photo, item.certDone.authId, app)
                     photo.recycle()
                     watermarkBitmap = watermarked
+                    Timber.d("[PERF][batch] watermark compose: ${System.currentTimeMillis() - tWmB0}ms")
 
                     val wmBytes = java.io.ByteArrayOutputStream().also { baos ->
                         watermarked.compress(android.graphics.Bitmap.CompressFormat.JPEG, 95, baos)
@@ -951,12 +967,18 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                     )
 
                     val service = org.witness.proofmode.camera.network.CertificationService()
-                    val sha256        = service.calculateSha256(wmBytes)
-                    val pHash         = service.calculatePHash(wmBytes)
-                    val cropHashes    = service.calculateBlockHashes(wmBytes)
+                    val sha256     = service.calculateSha256(wmBytes)
+                    val pHash      = service.calculatePHash(wmBytes)
+                    val cropHashes = service.calculateBlockHashes(wmBytes)
+                    val tEdgeB0 = System.currentTimeMillis()
                     val edgeDensities = service.calculateEdgeDensities(wmBytes)
-                    val edgeHog       = service.calculateEdgeHOG(wmBytes)
-                    val edgeStdDev    = service.calculateEdgeStdDev(wmBytes)
+                    Timber.d("[PERF][batch] edgeDensities: ${System.currentTimeMillis() - tEdgeB0}ms")
+                    val tHogB0 = System.currentTimeMillis()
+                    val edgeHog = service.calculateEdgeHOG(wmBytes)
+                    Timber.d("[PERF][batch] edgeHOG: ${System.currentTimeMillis() - tHogB0}ms")
+                    val tStdB0 = System.currentTimeMillis()
+                    val edgeStdDev = service.calculateEdgeStdDev(wmBytes)
+                    Timber.d("[PERF][batch] edgeStdDev: ${System.currentTimeMillis() - tStdB0}ms")
                     val thumbnail32   = service.generateThumbnail32(watermarked)
 
                     val request = org.witness.proofmode.camera.network.CertificationService.MetadataUploadRequest(
@@ -972,8 +994,10 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                         edgeStdDev          = edgeStdDev
                     )
 
+                    val tUpB0 = System.currentTimeMillis()
                     when (val result = service.uploadMetadata(request)) {
                         is org.witness.proofmode.camera.network.CertificationService.MetadataUploadResult.Success -> {
+                            Timber.d("[PERF][batch] uploadMetadata: ${System.currentTimeMillis() - tUpB0}ms")
                             val segment = item.media.uri.lastPathSegment
                             segment?.let { name ->
                                 if (File(capturesDir, name).delete()) {
@@ -989,7 +1013,9 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                                 expiresAtMs        = result.expiresAtMs,
                                 thumbnailBase64    = thumbnail32
                             ))
+                            val tChB0 = System.currentTimeMillis()
                             service.registerCropHashes(result.authId, wmBytes)
+                            Timber.d("[PERF][batch] registerCropHashes: ${System.currentTimeMillis() - tChB0}ms")
                             uploadSuccess = true
                         }
                         is org.witness.proofmode.camera.network.CertificationService.MetadataUploadResult.Failure ->
