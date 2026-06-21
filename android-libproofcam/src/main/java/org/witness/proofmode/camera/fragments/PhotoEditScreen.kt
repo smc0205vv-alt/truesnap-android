@@ -65,6 +65,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.core.content.FileProvider
 import com.yalantis.ucrop.UCrop
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -396,7 +397,10 @@ fun PhotoEditScreen(
                             val inputFile = File(context.cacheDir, "ucrop_in_${System.currentTimeMillis()}.jpg")
                             inputFile.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 95, it) }
                             val outputFile = File(context.cacheDir, "ucrop_out_${System.currentTimeMillis()}.jpg")
-                            val intent = UCrop.of(Uri.fromFile(inputFile), Uri.fromFile(outputFile))
+                            val authority = "${context.packageName}.provider"
+                            val inputUri  = FileProvider.getUriForFile(context, authority, inputFile)
+                            val outputUri = FileProvider.getUriForFile(context, authority, outputFile)
+                            val intent = UCrop.of(inputUri, outputUri)
                                 .withOptions(UCrop.Options().apply {
                                     setFreeStyleCropEnabled(true)
                                     setShowCropGrid(true)
