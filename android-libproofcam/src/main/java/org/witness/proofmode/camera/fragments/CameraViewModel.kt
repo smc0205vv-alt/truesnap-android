@@ -97,7 +97,6 @@ sealed class CertificationState {
         val captureTimestampMs: Long,
         val lofiThumbnailBase64: String? = null,
         val edgeDensities: FloatArray? = null,
-        val edgeHog: FloatArray? = null,
         val edgeStdDev: FloatArray? = null
     ) : CertificationState()
 }
@@ -737,18 +736,16 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                 val service = CertificationService()
                 val sha256     = service.calculateSha256(wmBytes)
                 val tHashParallel0 = System.currentTimeMillis()
-                val (edgeDensities, edgeHog, edgeStdDev) = coroutineScope {
+                val (edgeDensities, edgeStdDev) = coroutineScope {
                     val dAsync = async { service.calculateEdgeDensities(wmBytes) }
-                    val hAsync = async { service.calculateEdgeHOG(wmBytes) }
                     val sAsync = async { service.calculateEdgeStdDev(wmBytes) }
-                    Triple(dAsync.await(), hAsync.await(), sAsync.await())
+                    Pair(dAsync.await(), sAsync.await())
                 }
-                Timber.d("[PERF] edge parallel (d+h+s): ${System.currentTimeMillis() - tHashParallel0}ms")
+                Timber.d("[PERF] edge parallel (d+s): ${System.currentTimeMillis() - tHashParallel0}ms")
                 val thumbnail32   = service.generateThumbnail32(watermarked)
-                Timber.d("Watermark fingerprints: sha256=%s edges=%s hog=%s stddev=%s thumb=%s",
+                Timber.d("Watermark fingerprints: sha256=%s edges=%s stddev=%s thumb=%s",
                     sha256,
                     if (edgeDensities != null) "${edgeDensities.size}" else "null",
-                    if (edgeHog != null) "${edgeHog.size}" else "null",
                     if (edgeStdDev != null) "${edgeStdDev.size}" else "null",
                     if (thumbnail32 != null) "ok(${thumbnail32.length}B)" else "null")
 
@@ -757,7 +754,6 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                     _certificationState.value = currentDone.copy(
                         sha256Hash          = sha256,
                         edgeDensities       = edgeDensities,
-                        edgeHog             = edgeHog,
                         edgeStdDev          = edgeStdDev,
                         lofiThumbnailBase64 = thumbnail32
                     )
@@ -783,7 +779,6 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
         nickname: String,
         lofiThumbnailBase64: String? = null,
         edgeDensities: FloatArray? = null,
-        edgeHog: FloatArray? = null,
         edgeStdDev: FloatArray? = null
     ) {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
@@ -795,7 +790,6 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                 nickname            = nickname,
                 lofiThumbnailBase64 = lofiThumbnailBase64,
                 edgeDensities       = edgeDensities,
-                edgeHog             = edgeHog,
                 edgeStdDev          = edgeStdDev
             )
             val service = CertificationService()
@@ -942,13 +936,12 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                     val service = org.witness.proofmode.camera.network.CertificationService()
                     val sha256     = service.calculateSha256(wmBytes)
                     val tHashParallelB0 = System.currentTimeMillis()
-                    val (edgeDensities, edgeHog, edgeStdDev) = coroutineScope {
+                    val (edgeDensities, edgeStdDev) = coroutineScope {
                         val dAsync = async { service.calculateEdgeDensities(wmBytes) }
-                        val hAsync = async { service.calculateEdgeHOG(wmBytes) }
                         val sAsync = async { service.calculateEdgeStdDev(wmBytes) }
-                        Triple(dAsync.await(), hAsync.await(), sAsync.await())
+                        Pair(dAsync.await(), sAsync.await())
                     }
-                    Timber.d("[PERF][batch] edge parallel (d+h+s): ${System.currentTimeMillis() - tHashParallelB0}ms")
+                    Timber.d("[PERF][batch] edge parallel (d+s): ${System.currentTimeMillis() - tHashParallelB0}ms")
                     val thumbnail32   = service.generateThumbnail32(watermarked)
 
                     val request = org.witness.proofmode.camera.network.CertificationService.MetadataUploadRequest(
@@ -958,7 +951,6 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                         nickname            = nickname,
                         lofiThumbnailBase64 = thumbnail32,
                         edgeDensities       = edgeDensities,
-                        edgeHog             = edgeHog,
                         edgeStdDev          = edgeStdDev
                     )
 
