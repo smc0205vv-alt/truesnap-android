@@ -64,6 +64,8 @@ import org.witness.proofmode.camera.CameraActivity
 import org.witness.proofmode.camera.R
 import org.witness.proofmode.camera.adapter.Media
 import org.witness.proofmode.camera.fragments.CameraConstants.NEW_MEDIA_EVENT
+import org.witness.proofmode.camera.db.CertificationDatabase
+import org.witness.proofmode.camera.db.CertificationRecord
 import org.witness.proofmode.camera.network.CertificationService
 import org.witness.proofmode.camera.utils.SharedPrefsManager
 import org.witness.proofmode.camera.utils.getMediaFlow
@@ -157,6 +159,8 @@ class CameraViewModel(private val activity: CameraActivity, private val app: App
     // Used for navigating to the preview page. Supposed to have content credentials attached if enabled
     private var _lastCapturedMedia: MutableStateFlow<Media?> = MutableStateFlow(null)
     val lastCapturedMedia: StateFlow<Media?> = _lastCapturedMedia
+
+    private val certificationDao = CertificationDatabase.get(app).certificationDao()
 
     private val _certificationState = MutableStateFlow<CertificationState>(CertificationState.Idle)
     val certificationState: StateFlow<CertificationState> = _certificationState
@@ -808,9 +812,14 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
             val service = CertificationService()
             _uploadState.value = when (val result = service.uploadMetadata(request)) {
                 is CertificationService.MetadataUploadResult.Success -> {
-                    // Delete the session photo now that it is permanently registered.
-                    // No image is uploaded to the server — all fingerprints were computed on-device.
                     deleteMedia(_lastCapturedMedia.value)
+                    certificationDao.insert(CertificationRecord(
+                        authId             = result.authId,
+                        nickname           = nickname,
+                        captureTimestampMs = captureTimestampMs,
+                        expiresAtMs        = result.expiresAtMs,
+                        thumbnailBase64    = lofiThumbnailBase64
+                    ))
                     UploadState.Success(result.authId)
                 }
                 is CertificationService.MetadataUploadResult.Failure ->
@@ -961,7 +970,6 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
 
                     when (val result = service.uploadMetadata(request)) {
                         is org.witness.proofmode.camera.network.CertificationService.MetadataUploadResult.Success -> {
-                            // No image upload — all fingerprints computed on-device.
                             val segment = item.media.uri.lastPathSegment
                             segment?.let { name ->
                                 if (File(capturesDir, name).delete()) {
@@ -970,6 +978,13 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
                                     _mediaFiles.value = currentList
                                 }
                             }
+                            certificationDao.insert(CertificationRecord(
+                                authId             = result.authId,
+                                nickname           = nickname,
+                                captureTimestampMs = item.certDone.captureTimestampMs,
+                                expiresAtMs        = result.expiresAtMs,
+                                thumbnailBase64    = thumbnail32
+                            ))
                             uploadSuccess = true
                         }
                         is org.witness.proofmode.camera.network.CertificationService.MetadataUploadResult.Failure ->

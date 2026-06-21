@@ -145,7 +145,7 @@ class CertificationService {
     )
 
     sealed class MetadataUploadResult {
-        data class Success(val authId: String) : MetadataUploadResult()
+        data class Success(val authId: String, val expiresAtMs: Long) : MetadataUploadResult()
         data class Failure(val authId: String, val error: String) : MetadataUploadResult()
     }
 
@@ -338,8 +338,13 @@ class CertificationService {
             val response = client.newCall(httpRequest).execute()
             val body = response.body?.string().orEmpty()
             if (response.isSuccessful) {
-                Timber.d("Metadata upload success: authId=%s", request.authId)
-                MetadataUploadResult.Success(request.authId)
+                val expiresAtMs = try {
+                    val json = org.json.JSONObject(body)
+                    val iso = json.optString("expiresAt")
+                    if (iso.isNotBlank()) java.time.Instant.parse(iso).toEpochMilli() else 0L
+                } catch (e: Exception) { 0L }
+                Timber.d("Metadata upload success: authId=%s expiresAtMs=%d", request.authId, expiresAtMs)
+                MetadataUploadResult.Success(request.authId, expiresAtMs)
             } else {
                 Timber.w("Metadata upload failed: HTTP %d: %s", response.code, body)
                 MetadataUploadResult.Failure(request.authId, uploadHttpErrorMessage(response.code))
