@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -56,13 +55,13 @@ private fun markOnboardingCompleted(context: Context) {
         .edit().putBoolean(KEY_COMPLETED, true).apply()
 }
 
-private data class OnboardingPage(val emoji: String, val bodyRes: Int)
+private data class OnboardingPage(val bodyRes: Int)
 
 private val PAGES = listOf(
-    OnboardingPage(emoji = "🚫", bodyRes = R.string.onboarding_ts_slide1_body),
-    OnboardingPage(emoji = "📷", bodyRes = R.string.onboarding_ts_slide2_body),
-    OnboardingPage(emoji = "✅", bodyRes = R.string.onboarding_ts_slide3_body),
-    OnboardingPage(emoji = "📋", bodyRes = R.string.onboarding_ts_slide4_body),
+    OnboardingPage(bodyRes = R.string.onboarding_ts_slide1_body),
+    OnboardingPage(bodyRes = R.string.onboarding_ts_slide2_body),
+    OnboardingPage(bodyRes = R.string.onboarding_ts_slide3_body),
+    OnboardingPage(bodyRes = R.string.onboarding_ts_slide4_body),
 )
 
 class TrueSnapOnboardingActivity : ComponentActivity() {
@@ -176,11 +175,6 @@ private fun PageContent(page: OnboardingPage) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text(
-            text     = page.emoji,
-            fontSize = 80.sp
-        )
-        Spacer(Modifier.height(36.dp))
         Text(
             text       = stringResource(page.bodyRes),
             color      = Color.White,
