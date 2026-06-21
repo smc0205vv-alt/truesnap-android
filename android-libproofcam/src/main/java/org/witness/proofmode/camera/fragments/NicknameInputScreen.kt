@@ -135,7 +135,6 @@ fun NicknameInputScreen(
                             captureTimestampMs  = it.captureTimestampMs,
                             nickname            = nickname.trim(),
                             lofiThumbnailBase64 = it.lofiThumbnailBase64,
-                            cropHashes          = it.cropHashes,
                             edgeDensities       = it.edgeDensities,
                             edgeStdDev          = it.edgeStdDev
                         )
@@ -368,7 +367,6 @@ fun NicknameInputScreen(
                             captureTimestampMs  = it.captureTimestampMs,
                             nickname            = trimmed,
                             lofiThumbnailBase64 = it.lofiThumbnailBase64,
-                            cropHashes          = it.cropHashes,
                             edgeDensities       = it.edgeDensities,
                             edgeStdDev          = it.edgeStdDev
                         )
