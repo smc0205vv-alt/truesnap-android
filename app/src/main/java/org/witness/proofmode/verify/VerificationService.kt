@@ -1,5 +1,6 @@
 package org.witness.proofmode.verify
 
+import android.util.Base64
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
@@ -51,6 +52,13 @@ class VerificationService(private val context: android.content.Context) {
         val rawJson: String
     )
 
+    private val apiKey: String get() {
+        val salt = byteArrayOf(0x4b, 0x32, 0x9a.toByte(), 0x1c, 0x7f, 0xe3.toByte(), 0x55, 0x8d.toByte())
+        val p2Xored = Base64.decode(BuildConfig.TRUESNAP_API_KEY_P2X, Base64.NO_WRAP)
+        val p2 = String(p2Xored.mapIndexed { i, b -> (b.toInt() xor salt[i % salt.size].toInt()).and(0xFF).toChar() }.toCharArray())
+        return BuildConfig.TRUESNAP_API_KEY_P1 + p2
+    }
+
     private val client = OkHttpClient.Builder()
         .connectTimeout(TIMEOUT_MS, TimeUnit.MILLISECONDS)
         .readTimeout(TIMEOUT_MS, TimeUnit.MILLISECONDS)
@@ -60,7 +68,7 @@ class VerificationService(private val context: android.content.Context) {
     fun lookupRegistration(authId: String): Result<LookupResult> {
         val request = Request.Builder()
             .url("$LOOKUP_URL/$authId")
-            .addHeader("Authorization", "Bearer ${BuildConfig.TRUESNAP_API_KEY}")
+            .addHeader("Authorization", "Bearer $apiKey")
             .get()
             .build()
         return try {

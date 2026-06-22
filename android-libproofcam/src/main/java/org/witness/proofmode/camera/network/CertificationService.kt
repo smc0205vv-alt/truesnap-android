@@ -18,6 +18,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+import java.util.UUID
 
 /**
  * Handles SHA-256 hashing, auth-ID generation, edge fingerprint computation,
@@ -34,7 +35,14 @@ class CertificationService {
 
         const val METADATA_API_URL = "https://truesnap-production.up.railway.app/api/v1/certify"
 
-        private val API_KEY: String get() = BuildConfig.TRUESNAP_API_KEY
+        private val API_KEY: String get() {
+            val salt = byteArrayOf(0x4b, 0x32, 0x9a.toByte(), 0x1c, 0x7f, 0xe3.toByte(), 0x55, 0x8d.toByte())
+            val p2Xored = Base64.decode(BuildConfig.TRUESNAP_API_KEY_P2X, Base64.NO_WRAP)
+            val p2 = String(p2Xored.mapIndexed { i, b ->
+                (b.toInt() xor salt[i % salt.size].toInt()).and(0xFF).toChar()
+            }.toCharArray())
+            return BuildConfig.TRUESNAP_API_KEY_P1 + p2
+        }
 
         private val AUTH_ID_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
         private const val AUTH_ID_LENGTH = 6
@@ -102,7 +110,8 @@ class CertificationService {
         val nickname: String,
         val lofiThumbnailBase64: String? = null,
         val edgeDensities: FloatArray? = null,
-        val edgeStdDev: FloatArray? = null
+        val edgeStdDev: FloatArray? = null,
+        val nonce: String = UUID.randomUUID().toString()
     )
 
     sealed class MetadataUploadResult {
@@ -178,6 +187,7 @@ class CertificationService {
                 }
                 put("edge_stddev", arr)
             }
+            put("nonce", request.nonce)
             toString()
         }
 
@@ -189,6 +199,7 @@ class CertificationService {
         val httpRequest = Request.Builder()
             .url(METADATA_API_URL)
             .addHeader("Authorization", "Bearer $API_KEY")
+            .addHeader("X-Idempotency-Key", request.nonce)
             .post(jsonBody.toRequestBody("application/json".toMediaType()))
             .build()
 
@@ -414,6 +425,7 @@ class CertificationService {
 
     fun freeExtend(authId: String): Long? {
         val url = "https://truesnap-production.up.railway.app/api/extend/free/$authId"
+        val idempotencyKey = UUID.randomUUID().toString()
         val client = OkHttpClient.Builder()
             .connectTimeout(CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
             .readTimeout(READ_TIMEOUT_MS, TimeUnit.MILLISECONDS)
@@ -421,6 +433,7 @@ class CertificationService {
         val request = Request.Builder()
             .url(url)
             .addHeader("Authorization", "Bearer $API_KEY")
+            .addHeader("X-Idempotency-Key", idempotencyKey)
             .post(ByteArray(0).toRequestBody("application/json".toMediaType()))
             .build()
         return try {

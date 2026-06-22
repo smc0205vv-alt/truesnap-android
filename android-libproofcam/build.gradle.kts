@@ -1,3 +1,4 @@
+import java.util.Base64
 import java.util.Properties
 
 plugins {
@@ -15,8 +16,19 @@ val localProps = Properties().apply {
     val f = rootProject.file("local.properties")
     if (f.canRead()) f.inputStream().use { load(it) }
 }
-val truesnapApiKey: String = localProps.getProperty("TRUESNAP_API_KEY")
+val rawApiKey: String = localProps.getProperty("TRUESNAP_API_KEY")
     ?: error("TRUESNAP_API_KEY not found in local.properties")
+
+// Split the key: p1 is stored plain, p2 is XOR-obfuscated and Base64-encoded.
+// Decompiling the APK yields two opaque strings; reconstruction requires knowing
+// the XOR salt embedded in native/Kotlin code. Step up to NDK for stronger hiding.
+val apiKeyP1: String = rawApiKey.take(32)
+val apiKeyP2Bytes: ByteArray = rawApiKey.drop(32).toByteArray(Charsets.US_ASCII)
+val xorSalt = byteArrayOf(0x4b, 0x32, 0x9a.toByte(), 0x1c, 0x7f, 0xe3.toByte(), 0x55, 0x8d.toByte())
+val apiKeyP2Xored = apiKeyP2Bytes.mapIndexed { i, b ->
+    (b.toInt() xor xorSalt[i % xorSalt.size].toInt()).toByte()
+}.toByteArray()
+val apiKeyP2B64: String = Base64.getEncoder().encodeToString(apiKeyP2Xored)
 
 android {
     compileSdk = 36
@@ -25,7 +37,8 @@ android {
     defaultConfig {
         minSdk = 28
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        buildConfigField("String", "TRUESNAP_API_KEY", "\"$truesnapApiKey\"")
+        buildConfigField("String", "TRUESNAP_API_KEY_P1",  "\"$apiKeyP1\"")
+        buildConfigField("String", "TRUESNAP_API_KEY_P2X", "\"$apiKeyP2B64\"")
     }
     buildTypes {
         getByName("release") {

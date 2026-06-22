@@ -17,18 +17,8 @@
 #}
 
 -optimizationpasses 5
--dontusemixedcaseclassnames
--dontskipnonpubliclibraryclasses
--dontskipnonpubliclibraryclassmembers
--dontpreverify
--verbose
--repackageclasses ''
 -allowaccessmodification
 -keepattributes *Annotation*
-
-##-injars libs
-
--outjars bin/classes-processed.jar
 
 -dontwarn javax.naming.**
 -dontwarn android.support.**
@@ -90,7 +80,13 @@
 -keep class org.witness.proofmode.c2pa.* { *; }
 -keep class org.witness.proofmode.c2pa.custom.** { *; }
 -keep class org.witness.proofmode.c2pa.selfsign.** { *; }
--keep class org.witness.proofmode.camera.** { *; }
+# camera subpackages — surgical keeps.
+# network.* (CertificationService) and utils.* are intentionally excluded so R8
+# can obfuscate them; they contain no manifest references or reflection entry points.
+-keep class org.witness.proofmode.camera.adapter.**   { *; }
+-keep class org.witness.proofmode.camera.db.**        { *; }
+-keep class org.witness.proofmode.camera.enums.**     { *; }
+-keep class org.witness.proofmode.camera.fragments.** { *; }
 -keep class org.witness.proofmode.crypto.** { *; }
 -keep class org.witness.proofmode.notaries.** { *; }
 -keep class org.witness.proofmode.notarization.** { *; }
@@ -180,3 +176,33 @@
 -keepclassmembers class **$WhenMappings { <fields>; }
 -keepclassmembers class kotlin.Metadata { public <methods>; }
 -dontwarn kotlin.**
+
+# ----------------------------------------------------------------------
+# Room — entity and DAO classes are accessed reflectively by the framework
+# ----------------------------------------------------------------------
+-keep @androidx.room.Entity class * { *; }
+-keep @androidx.room.Dao interface * { *; }
+-keep class * extends androidx.room.RoomDatabase { *; }
+-keepclassmembers class * extends androidx.room.RoomDatabase {
+    abstract *;
+}
+
+# ----------------------------------------------------------------------
+# WorkManager — Worker subclasses are instantiated by class name
+# ----------------------------------------------------------------------
+-keep class * extends androidx.work.Worker { *; }
+-keep class * extends androidx.work.ListenableWorker {
+    public <init>(android.content.Context, androidx.work.WorkerParameters);
+}
+
+# ----------------------------------------------------------------------
+# ACRA — crash reporter uses reflection to read fields and annotations
+# ----------------------------------------------------------------------
+-keep class org.acra.** { *; }
+-keepattributes *Annotation*
+
+# ----------------------------------------------------------------------
+# Talsec freeRASP — SDK uses JNI/reflection internally; consumer rules
+# are bundled in the AAR but we pin the public config class here
+# ----------------------------------------------------------------------
+-keep class com.aheaditec.talsec_security.** { *; }

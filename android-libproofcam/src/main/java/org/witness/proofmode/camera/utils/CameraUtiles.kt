@@ -30,6 +30,50 @@ import org.witness.proofmode.camera.R
 import org.witness.proofmode.camera.adapter.Media
 import java.io.File
 
+sealed class CameraTrustResult {
+    object Trusted : CameraTrustResult()
+    data class Suspicious(val reason: String) : CameraTrustResult()
+    data class Blocked(val reason: String) : CameraTrustResult()
+}
+
+/**
+ * Validates that the selected camera is a real hardware camera (front/back).
+ * Returns [CameraTrustResult.Blocked] for external/virtual cameras
+ * (LENS_FACING_EXTERNAL, HARDWARE_LEVEL_EXTERNAL) and
+ * [CameraTrustResult.Suspicious] for legacy drivers.
+ * Call this before starting a certification session.
+ */
+@OptIn(ExperimentalCamera2Interop::class)
+fun validateCameraHardware(
+    cameraSelector: CameraSelector,
+    cameraProvider: CameraProvider
+): CameraTrustResult {
+    val targetLens = if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA)
+        CameraMetadata.LENS_FACING_FRONT else CameraMetadata.LENS_FACING_BACK
+
+    val cameraInfo = cameraProvider.availableCameraInfos.firstOrNull {
+        Camera2CameraInfo.from(it)
+            .getCameraCharacteristic(CameraCharacteristics.LENS_FACING) == targetLens
+    } ?: return CameraTrustResult.Blocked("선택한 카메라를 찾을 수 없습니다")
+
+    val cam2 = Camera2CameraInfo.from(cameraInfo)
+
+    val facing = cam2.getCameraCharacteristic(CameraCharacteristics.LENS_FACING)
+    if (facing == CameraMetadata.LENS_FACING_EXTERNAL) {
+        return CameraTrustResult.Blocked("외부/가상 카메라는 인증에 사용할 수 없습니다")
+    }
+
+    val hwLevel = cam2.getCameraCharacteristic(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL)
+    if (hwLevel == CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_EXTERNAL) {
+        return CameraTrustResult.Blocked("외부 하드웨어 카메라는 인증에 사용할 수 없습니다")
+    }
+    if (hwLevel == CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY) {
+        return CameraTrustResult.Suspicious("레거시 카메라 드라이버가 감지됐습니다. 인증 신뢰도가 낮게 평가될 수 있습니다")
+    }
+
+    return CameraTrustResult.Trusted
+}
+
 @OptIn(ExperimentalCamera2Interop::class)
 fun getSupportedQualities(
     cameraSelector: CameraSelector,

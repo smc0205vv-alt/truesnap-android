@@ -1,10 +1,16 @@
 package org.witness.proofmode.camera.fragments
 
+import android.util.Log
+import android.widget.Toast
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -14,7 +20,6 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
-import android.util.Log
 import org.witness.proofmode.camera.utils.SharedPrefsManager
 
 @Composable
@@ -28,6 +33,22 @@ fun CameraNavigation(
     val prefsManager = remember { SharedPrefsManager.newInstance(context) }
     val savedMode    = remember {
         prefsManager.getString(SharedPrefsManager.KEY_CAMERA_MODE, CameraDestinations.PHOTO)
+    }
+
+    val cameraHardwareAlert by viewModel.cameraHardwareAlert.collectAsState()
+    LaunchedEffect(cameraHardwareAlert) {
+        if (cameraHardwareAlert is CameraHardwareAlert.Warning) {
+            Toast.makeText(context, (cameraHardwareAlert as CameraHardwareAlert.Warning).reason, Toast.LENGTH_LONG).show()
+            viewModel.dismissCameraHardwareAlert()
+        }
+    }
+    if (cameraHardwareAlert is CameraHardwareAlert.Blocked) {
+        AlertDialog(
+            onDismissRequest = { onClosed() },
+            title            = { Text("카메라 사용 불가") },
+            text             = { Text((cameraHardwareAlert as CameraHardwareAlert.Blocked).reason) },
+            confirmButton    = { TextButton(onClick = { onClosed() }) { Text("확인") } }
+        )
     }
 
     val currentBackStackEntry by navController.currentBackStackEntryAsState()

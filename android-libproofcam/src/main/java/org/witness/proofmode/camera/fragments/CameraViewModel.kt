@@ -69,10 +69,12 @@ import org.witness.proofmode.camera.fragments.CameraConstants.NEW_MEDIA_EVENT
 import org.witness.proofmode.camera.db.CertificationDatabase
 import org.witness.proofmode.camera.db.CertificationRecord
 import org.witness.proofmode.camera.network.CertificationService
+import org.witness.proofmode.camera.utils.CameraTrustResult
 import org.witness.proofmode.camera.utils.SharedPrefsManager
 import org.witness.proofmode.camera.utils.getMediaFlow
 import org.witness.proofmode.camera.utils.getSupportedQualities
 import org.witness.proofmode.camera.utils.isUltraHdrSupported
+import org.witness.proofmode.camera.utils.validateCameraHardware
 import org.witness.proofmode.c2pa.proofsign.CaptureAuthority
 import org.witness.proofmode.service.MediaWatcher.Companion.getInstance
 import java.io.File
@@ -139,6 +141,13 @@ sealed class UploadState {
     data class Failure(val authId: String, val error: String) : UploadState()
 }
 
+/** Camera hardware trust result surfaced to the UI. */
+sealed class CameraHardwareAlert {
+    object None : CameraHardwareAlert()
+    data class Warning(val reason: String) : CameraHardwareAlert()
+    data class Blocked(val reason: String) : CameraHardwareAlert()
+}
+
 class CameraViewModel(private val activity: CameraActivity, private val app: Application) : AndroidViewModel(app) {
     private val sharedPrefsManager = SharedPrefsManager.newInstance(app.applicationContext)
     private val capturesDir: File get() = File(app.filesDir, "captures").also { it.mkdirs() }
@@ -180,6 +189,9 @@ class CameraViewModel(private val activity: CameraActivity, private val app: App
 
     private val _watermarkState = MutableStateFlow<WatermarkState>(WatermarkState.Idle)
     val watermarkState: StateFlow<WatermarkState> = _watermarkState
+
+    private val _cameraHardwareAlert = MutableStateFlow<CameraHardwareAlert>(CameraHardwareAlert.None)
+    val cameraHardwareAlert: StateFlow<CameraHardwareAlert> = _cameraHardwareAlert
 
     // Used for rounded thumbnail to immediately show when an image or video is captured
     var _thumbPreviewUri = MutableStateFlow<Media?>(null)
@@ -541,10 +553,22 @@ suspend fun bindUseCasesForVideo(lifecycleOwner: LifecycleOwner) {
         cameraProvider = cameraProvider?: ProcessCameraProvider.awaitInstance(app.applicationContext)
         val cameraSelector = CameraSelector.Builder()
             .requireLensFacing(lensFacing.value?:CameraSelector.LENS_FACING_BACK).build()
+        when (val trust = validateCameraHardware(cameraSelector, cameraProvider!!)) {
+            is CameraTrustResult.Blocked    -> {
+                _cameraHardwareAlert.value = CameraHardwareAlert.Blocked(trust.reason)
+                return
+            }
+            is CameraTrustResult.Suspicious -> _cameraHardwareAlert.value = CameraHardwareAlert.Warning(trust.reason)
+            is CameraTrustResult.Trusted    -> _cameraHardwareAlert.value = CameraHardwareAlert.None
+        }
         if (!isUltraHdrSupported(cameraSelector, cameraProvider!!)) {
             _ultraHdr.update { UltraHDRAvailabilityState.NOT_SUPPORTED }
         }
         bindImageUseCases(lifecycleOwner)
+    }
+
+    fun dismissCameraHardwareAlert() {
+        _cameraHardwareAlert.value = CameraHardwareAlert.None
     }
 
     suspend fun toggleUltraHdr(lifecycleOwner: LifecycleOwner) {
