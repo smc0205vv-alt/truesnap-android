@@ -47,8 +47,8 @@ class CertificationService {
         private const val EDGE_MAX_DIM      = 1024
         private const val EDGE_REL_FACTOR   = 0.25f
         private const val EDGE_MIN_GRADIENT = 10f
-        private const val EDGE_GRID_COLS    = 32
-        private const val EDGE_GRID_ROWS    = 32
+        private const val EDGE_GRID_COLS    = 48
+        private const val EDGE_GRID_ROWS    = 48
 
         // Gaussian pre-blur constants — must match server src/lib/phash.js
         private const val GAUSSIAN_KERNEL_SIZE = 5
@@ -259,9 +259,9 @@ class CertificationService {
     // ---------------------------------------------------------------------------
 
     /**
-     * Computes Sobel edge density per block in a 32×32 grid.
+     * Computes Sobel edge density per block in a 48×48 grid.
      * Must match server src/lib/phash.js _computeEdgeFeatures.
-     * @return FloatArray of 1024 density values (0.0–1.0), or null on error.
+     * @return FloatArray of 2304 density values (0.0–1.0), or null on error.
      */
     fun calculateEdgeDensities(imageBytes: ByteArray): FloatArray? {
         return try {
@@ -343,7 +343,7 @@ class CertificationService {
     /**
      * Computes per-block pixel standard deviation for texture tamper detection.
      * Must match server src/lib/phash.js _computeEdgeStdDev.
-     * @return FloatArray of 1024 values (32×32 grid), or null on error.
+     * @return FloatArray of 2304 values (48×48 grid), or null on error.
      */
     fun calculateEdgeStdDev(imageBytes: ByteArray): FloatArray? {
         return try {
