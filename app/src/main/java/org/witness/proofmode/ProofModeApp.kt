@@ -63,153 +63,123 @@ class ProofModeApp : Application(), Configuration.Provider {
         System.loadLibrary("durindoor")
         DeviceIntegritySupport.ensureNativeLoaded()
 
-        val expectedPackageName =
-            if (BuildConfig.DEBUG) "$EXPECTED_PACKAGE_NAME.debug" else EXPECTED_PACKAGE_NAME
-        val isProd = IS_PROD && !BuildConfig.DEBUG
-        val killOnBypass = KILL_ON_BYPASS && !BuildConfig.DEBUG
+        // ApplicationInfo.FLAG_DEBUGGABLE is set by AGP for debug builds — more reliable
+        // than the library module's BuildConfig.DEBUG which can be false even in debug builds.
+        val isDebugBuild = (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
 
-        val config = TalsecConfig.Builder(
-            expectedPackageName,
-            EXPECTED_SIGNING_CERTIFICATE_HASH_BASE64)
-            .watcherMail(WATCHER_MAIL)
-         //   .supportedAlternativeStores(SUPPORTED_ALTERNATIVE_STORES)
-            .prod(isProd)
-            .killOnBypass(killOnBypass)
-            .build()
+        if (!isDebugBuild) {
+            val config = TalsecConfig.Builder(
+                EXPECTED_PACKAGE_NAME,
+                EXPECTED_SIGNING_CERTIFICATE_HASH_BASE64)
+                .watcherMail(WATCHER_MAIL)
+             //   .supportedAlternativeStores(SUPPORTED_ALTERNATIVE_STORES)
+                .prod(IS_PROD)
+                .killOnBypass(KILL_ON_BYPASS)
+                .build()
 
-        val threatDetectedListener = object : ThreatListener.ThreatDetected() {
+            val threatDetectedListener = object : ThreatListener.ThreatDetected() {
 
-            override fun onRootDetected() {
-                println("onRootDetected")
-                if (!BuildConfig.DEBUG) {
-                    exitProcess(0)
-                }
-            }
-
-            override fun onDebuggerDetected() {
-                println("onDebuggerDetected")
-
-                if (!BuildConfig.DEBUG) {
-                    showWarning("No debugging allowed");
-                    exitProcess(0)
-                }
-            }
-
-            override fun onEmulatorDetected() {
-                println("onEmulatorDetected")
-                if (!BuildConfig.DEBUG) {
-                    showWarning("Emulators are not supported");
-                    exitProcess(0)
-
-                }
-
-            }
-
-            override fun onTamperDetected() {
-                println("onTamperDetected")
-
-                if (!BuildConfig.DEBUG) {
-                    showWarning("Tampering detected");
+                override fun onRootDetected() {
+                    println("onRootDetected")
                     exitProcess(0)
                 }
 
-            }
-
-            override fun onUntrustedInstallationSourceDetected() {
-                println("onUntrustedInstallationSourceDetected")
-
-                if (!BuildConfig.DEBUG) {
-                  //  showWarning("Untrusted installation source detected");
-                //    exitProcess(0)
-                }
-            }
-
-            override fun onHookDetected() {
-                println("onHookDetected")
-                if (!BuildConfig.DEBUG) {
-                    showWarning("Ye olde Captain Hook, eh?!");
+                override fun onDebuggerDetected() {
+                    println("onDebuggerDetected")
+                    showWarning("No debugging allowed")
                     exitProcess(0)
                 }
-            }
 
-            override fun onDeviceBindingDetected() {
-                println("onDeviceBindingDetected")
-            }
+                override fun onEmulatorDetected() {
+                    println("onEmulatorDetected")
+                    showWarning("Emulators are not supported")
+                    exitProcess(0)
+                }
 
-            override fun onObfuscationIssuesDetected() {
-                if (!BuildConfig.DEBUG) {
+                override fun onTamperDetected() {
+                    println("onTamperDetected")
+                    showWarning("Tampering detected")
+                    exitProcess(0)
+                }
+
+                override fun onUntrustedInstallationSourceDetected() {
+                    println("onUntrustedInstallationSourceDetected")
+                  //  showWarning("Untrusted installation source detected")
+                  //  exitProcess(0)
+                }
+
+                override fun onHookDetected() {
+                    println("onHookDetected")
+                    showWarning("Ye olde Captain Hook, eh?!")
+                    exitProcess(0)
+                }
+
+                override fun onDeviceBindingDetected() {
+                    println("onDeviceBindingDetected")
+                }
+
+                override fun onObfuscationIssuesDetected() {
                     println("onObfuscationIssueDetected")
-                    showWarning("Obfuscation issue detected");
+                    showWarning("Obfuscation issue detected")
+                    exitProcess(0)
+                }
+
+                override fun onScreenshotDetected() {
+                    println("onScreenshotDetected")
+                }
+
+                override fun onScreenRecordingDetected() {
+                    println("onScreenRecordingDetected")
+                }
+
+                override fun onMultiInstanceDetected() {
+                    println("onMultiInstanceDetected")
+                   // showWarning("Multiple instances detected")
+                   // exitProcess(0)
+                }
+
+                override fun onUnsecureWifiDetected() {
+                    println("onUnsecureWifiDetected")
+                }
+
+                override fun onTimeSpoofingDetected() {
+                    println("onTimeSpoofingDetected")
+                    showWarning("Timespoofing detected")
+                    exitProcess(0)
+                }
+
+                override fun onLocationSpoofingDetected() {
+                    println("onLocationSpoofingDetected")
+                    showWarning("Location spoofing detected")
+                 //   exitProcess(0)
+                }
+
+                override fun onAutomationDetected() {
+                    println("onAutomationDetected")
+                    showWarning("Automation detected")
+                    exitProcess(0)
+                }
+
+                override fun onMalwareDetected(suspiciousApps: List<SuspiciousAppInfo>) {
+                    println("onMalwareDetected")
+                    showWarning("Malware detected")
                     exitProcess(0)
                 }
             }
 
-            override fun onScreenshotDetected() {
-                println("onScreenshotDetected")
+            ThreatListener(threatDetectedListener).registerListener(this)
+            Talsec.start(this, config, TalsecMode.BACKGROUND)
+
+            //aggressively stop people trying to instrument the app
+            val dIntMan = DeviceIntegritySupport()
+            if (dIntMan.isEnvironmentCompromised())
+                exitProcess(0)
+
+            //and do not allow developer mode
+            if (dIntMan.isDeveloperAttackSurfaceOpen(this)) {
+              //  Toast.makeText(this, getString(R.string.security_warning_usb),Toast.LENGTH_LONG).show()
+                //exitProcess(0)
             }
-
-            override fun onScreenRecordingDetected() {
-                println("onScreenRecordingDetected")
-            }
-
-            override fun onMultiInstanceDetected() {
-                println("onMultiInstanceDetected")
-
-                if (!BuildConfig.DEBUG) {
-                   // showWarning("Multiple instances detected");
-                    //exitProcess(0)
-                }
-            }
-
-            override fun onUnsecureWifiDetected() {
-                println("onUnsecureWifiDetected")
-            }
-
-            override fun onTimeSpoofingDetected() {
-                println("onTimeSpoofingDetected")
-                if (!BuildConfig.DEBUG) {
-                    showWarning("Timespoofing detected");
-                    exitProcess(0)
-                }
-            }
-
-            override fun onLocationSpoofingDetected() {
-                println("onLocationSpoofingDetected")
-                if (!BuildConfig.DEBUG) {
-                    showWarning("Location spoofing detected");
-                //    exitProcess(0)
-                }
-            }
-
-            override fun onAutomationDetected() {
-                println("onAutomationDetected")
-                if (!BuildConfig.DEBUG) {
-                    showWarning("Automation detected");
-                    exitProcess(0)
-                }
-            }
-
-            override fun onMalwareDetected(suspiciousApps: List<SuspiciousAppInfo>) {
-                println("onMalwareDetected")
-                if (!BuildConfig.DEBUG) {
-                    showWarning("Malware detected");
-                    exitProcess(0)
-                }
-            }
-        }
-
-        ThreatListener(threatDetectedListener).registerListener(this)
-        Talsec.start(this, config, TalsecMode.BACKGROUND)
-
-        //aggressively stop people trying to instrument the app
-        var dIntMan = DeviceIntegritySupport()
-        if (!BuildConfig.DEBUG && dIntMan.isEnvironmentCompromised())
-            exitProcess(0)
-
-        //and do not allow developer mode
-        if(!BuildConfig.DEBUG && dIntMan.isDeveloperAttackSurfaceOpen(this)) {
-          //  Toast.makeText(this, getString(R.string.security_warning_usb),Toast.LENGTH_LONG).show()
-            //exitProcess(0)
         }
 
         // Seed signing preferences from XML defaults so the configured server URL
@@ -601,7 +571,7 @@ class ProofModeApp : Application(), Configuration.Provider {
 
     private companion object {
 
-        public const val EXPECTED_PACKAGE_NAME = "org.witness.proofmode" // Don't use Context.getPackageName!
+        public const val EXPECTED_PACKAGE_NAME = "com.truesnap.app" // Don't use Context.getPackageName!
         private val EXPECTED_SIGNING_CERTIFICATE_HASH_BASE64 = arrayOf(
             "8AaiBIHHGmkN4C44WrDJ+krBJFJA9oECaCcDugZWhno="
         ) // Replace with your release (!) signing certificate hashes
